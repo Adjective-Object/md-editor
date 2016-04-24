@@ -1,0 +1,17 @@
+.mdedit {
+}
+
+.mdedit, .mdedit > div:first-child {
+	min-height: 1em;
+}
+
+.mdedit .h1 { font-size: 32px; font-weight: bold; }
+.mdedit .h2 { font-size: 24px; text-decoration: underline; }
+.mdedit .h3 { font-size: 18px; text-decoration: italic; }
+.mdedit .h4 { font-size: 16px; text-decoration: italic; }
+.mdedit .h5 { font-size: 14px; text-decoration: italic; }
+.mdedit .h6 { font-size: 12px; text-decoration: italic; }
+
+.mdedit p {
+	margin-top: 12px;
+}
