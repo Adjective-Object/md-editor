@@ -1,16 +1,23 @@
 .mdedit {
 }
 
-.mdedit, .mdedit > div:first-child {
+.mdedit, 
+.mdedit > div:first-child,
+.mdedit > .p {
 	min-height: 1em;
 }
 
-.mdedit .h1 { font-size: 32px; font-weight: bold; }
-.mdedit .h2 { font-size: 24px; text-decoration: underline; }
-.mdedit .h3 { font-size: 18px; text-decoration: italic; }
-.mdedit .h4 { font-size: 16px; text-decoration: italic; }
-.mdedit .h5 { font-size: 14px; text-decoration: italic; }
-.mdedit .h6 { font-size: 12px; text-decoration: italic; }
+.mdedit .h1 { opacity: 0.6; font-size: 32px; font-weight: bold; }
+.mdedit .h2 { opacity: 0.6; font-size: 24px; }
+.mdedit .h3 { opacity: 0.6; font-size: 18px; font-style: italic; }
+.mdedit .h4 { opacity: 0.6; font-size: 16px; font-style: italic; }
+.mdedit .h5 { opacity: 0.6; font-size: 14px; font-style: italic; }
+.mdedit .h6 { opacity: 0.6; font-size: 12px; font-style: italic; }
+
+.mdedit .code {
+	font-family: monospace;
+	display: inline;
+}
 
 .mdedit p {
 	margin-top: 12px;
