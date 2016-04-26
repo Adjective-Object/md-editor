@@ -26,6 +26,12 @@ function dispatchEvt(host) {
       docParts[classKey][evt.type](host, target, evt);
     }
 
+    if (docParts['*'] != undefined &&
+        docParts['*'][evt.type] != undefined
+        ) {
+      docParts['*'][evt.type](host, target, evt);
+    }
+
     // otherwise, just re-render the line the edit happend on
     // else {
     //   while(target.parentElement != host && target != host) {
@@ -42,13 +48,15 @@ function dispatchEvt(host) {
 
 function renderLine(lineDiv, evt) {
   console.log('renderLine called');
-  console.log('    predicting text');
   evt.preventDefault();
 
   // predict the change that will happen to the line div
+  console.log('    predicting text');
   var lineText = flattenDeletes(predictTextRecursive(lineDiv, evt));
+  console.log('    ', '"' + lineText + '"');
   
   console.log('    getting cursor pos');
+  console.log('    ', window.getSelection().anchorNode);
   // get position of cursor relative to line
   var cursorPos = getCursorPos(lineDiv);
 
@@ -65,7 +73,10 @@ function renderLine(lineDiv, evt) {
   // insert cursor at saved position relative to line
   console.log('    setting cursor pos');
   setCursorPos(lineDiv, 
-    cursorPos + (isDelete(evt.keyCode) ? -1 : 1) );
+    cursorPos + 
+      (evt.keyCode == keys.BACKSPACE 
+        ? -1 
+        : (evt.keyCode == keys.DELETE) ? 0 : 1));
 
   // remove text immediately before cursor and insert this text
   //removeTextBeforeCursor();
@@ -75,9 +86,15 @@ function renderLine(lineDiv, evt) {
     lineDiv.className = 'h' + countHeaderHashes(lineText)
     return;
   }
+
+  else {
+    lineDiv.className = 'p'
+  }
 }
 
-function extractSpan(elem, delim, className) {
+
+function extractSpan(elem, delim, className, isChild) {
+  isChild = isChild || false;
 
   console.log('extractSpan', elem, delim, className);
 
@@ -131,9 +148,12 @@ function extractSpan(elem, delim, className) {
 
     for (var i=0; i<nonLiveChildren.length; i++) {
       console.log ('non-live-child', i)
-      extractSpan(nonLiveChildren[i], delim, className);
+      extractSpan(nonLiveChildren[i], delim, className, true);
     }
-    elem.parentElement.appendChild(elem)
+
+    if (isChild) {
+      elem.parentElement.appendChild(elem)
+    }
   }
 }
 
@@ -150,15 +170,13 @@ var keys = {
 
   ENTER:      '\r'.charCodeAt(0),
   BACKSPACE:  '\b'.charCodeAt(0),
-  DELETE:     127, 
+  DELETE:     46, 
   TAB:        '\t'.charCodeAt(0),
 }
 
 var docParts = expandCharClassKeys({
   // root elem
-  mdedit: {
-  },
-  'p': {
+  '*': {
     keypress: matchRuleset([
       [always, renderLineEvt]
     ]),
@@ -169,27 +187,7 @@ var docParts = expandCharClassKeys({
         keys.DELETE,
         keys.BACKSPACE])       , renderLineEvt]
     ])
-  },
-
-  'h[1,2,3,4,5,6]': {
-    keypress: matchRuleset([
-      [always, renderLineEvt]
-    ]),
-    keydown: matchRuleset([
-      [keyCode(keys.ENTER)  , clearToParagraph],
-      [keyCode(keys.BACKSPACE), renderLineEvt]
-    ])
-  },
-
-  '[code,italic,bold,underline]': {
-    keypress: matchRuleset([
-      [always, renderLineEvt]
-    ]),
-    keydown: matchRuleset([
-      [keyCode(keys.ENTER)  , clearToParagraph],
-      [keyCode(keys.BACKSPACE), renderLineEvt]
-    ])
-  },
+  }
 });
 
 function matchRuleset(mappings) {
@@ -225,6 +223,7 @@ function keyCode(code){
 function keyCodes(codes){
   return function(str, evt){ 
     for (var i=0; i<codes.length; i++) {
+      console.log(evt.keyCode, codes[i]);
       if( evt.keyCode == codes[i] ) return true;
     };
     return false;
@@ -256,13 +255,12 @@ function clearToParagraph(host, target, evt) {
 
   var selection = window.getSelection();
   var cursorOff = selection.anchorOffset;
-  p.appendChild(
-    document.createTextNode(target.textContent.substring(cursorOff))
-  );
+  var ptext = document.createTextNode(target.textContent.substring(cursorOff))
+  p.appendChild(ptext);
   target.textContent = target.textContent.substring(0, cursorOff);
 
   // move cursor to target of next element
-  moveSelection(p, 0);
+  moveSelection(ptext, 0);
 }
 
 //////////
@@ -335,7 +333,9 @@ function predictTextRecursive(node, evt) {
   // if the node is text, either modify it's text according to event
   // or don't
   if (node.nodeName == '#text') {
-    if (window.getSelection().anchorNode == node) {
+    if (window.getSelection().anchorNode == node || 
+        (window.getSelection().anchorNode == node.parentElement && 
+          node.parentElement.childNodes.length == 1)) {
       var content = node.textContent;
       var offset = window.getSelection().anchorOffset;
       return (
@@ -480,8 +480,4 @@ function flattenDeletes(str){
     }
   }
   return str;
-}
-
-function isDelete(keyCode) {
-  return keyCode == keys.DELETE || keyCode == keys.BACKSPACE;
 }

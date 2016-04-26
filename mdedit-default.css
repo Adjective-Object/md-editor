@@ -16,7 +16,7 @@
 
 .mdedit .code,
 .mdedit .italic,
-.mdedit .bold
+.mdedit .bold,
 .mdedit .underline
 {
 	display: inline;
