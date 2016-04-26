@@ -1,8 +1,7 @@
 // external use function that sets up the event hooks
 function mdedit(host) {
-  //host.addEventListener('input', dispatchInput(host))
+  host.addEventListener('input', dispatchEvt(host));
   host.addEventListener('keydown',  dispatchEvt(host));
-  host.addEventListener('keypress', dispatchEvt(host));
   //host.addEventListener('keydown', dispatchSpecialKeypress(host));
 }
 
@@ -16,19 +15,15 @@ function dispatchEvt(host) {
     var target = selection.anchorNode;
     var node = tagOf(target);
 
-    console.log('dispatch', evt.type)
-
     // dispatch based on the node's class if a handler exists
-    var classKey = node.classList[0];
+    var classKey = evt.target.classList[0];
     if (docParts[classKey] != undefined &&
-        docParts[classKey][evt.type] != undefined
-        ) {
+        docParts[classKey][evt.type] != undefined ) {
       docParts[classKey][evt.type](host, target, evt);
     }
 
     if (docParts['*'] != undefined &&
-        docParts['*'][evt.type] != undefined
-        ) {
+        docParts['*'][evt.type] != undefined ) {
       docParts['*'][evt.type](host, target, evt);
     }
 
@@ -46,40 +41,27 @@ function dispatchEvt(host) {
 // Render Function //
 /////////////////////
 
-function renderLine(lineDiv, evt) {
-  console.log('renderLine called');
-  evt.preventDefault();
-
-  // predict the change that will happen to the line div
-  console.log('    predicting text');
-  var lineText = flattenDeletes(predictTextRecursive(lineDiv, evt));
-  console.log('    ', '"' + lineText + '"');
-  
-  console.log('    getting cursor pos');
-  console.log('    ', window.getSelection().anchorNode);
-  // get position of cursor relative to line
+function renderLine(host, lineDiv, evt) {
+  var lineText = lineDiv.textContent;  
   var cursorPos = getCursorPos(lineDiv);
 
-  console.log('    cursor at', cursorPos);
-
   // render the content of the line
-  console.log('    extracting spans');
-  lineDiv.textContent = lineText
-  extractSpan(lineDiv, '`', 'code')
-  // extractSpan(lineDiv.childNodes[0], '**', 'bold')
-  // extractSpan(lineDiv.childNodes[0], '*', 'italic')
-  extractSpan(lineDiv, '_', 'underline')
+  console.log('    extracting spans from', lineDiv);
+  lineDiv.textContent = lineText;
+  extractSpan(host, lineDiv, '`'  , 'code');
+  extractSpan(host, lineDiv, '**' , 'bold');
+  extractSpan(host, lineDiv, '*'  , 'italic');
+  extractSpan(host, lineDiv, '_'  , 'underline');
 
   // insert cursor at saved position relative to line
   console.log('    setting cursor pos');
-  setCursorPos(lineDiv, 
-    cursorPos + 
-      (evt.keyCode == keys.BACKSPACE 
-        ? -1 
-        : (evt.keyCode == keys.DELETE) ? 0 : 1));
+  if (cursorPos != -1) {
+    setCursorPos(lineDiv, cursorPos);
+  }
 
-  // remove text immediately before cursor and insert this text
-  //removeTextBeforeCursor();
+
+
+
 
   // determine class of this line
   if (lineText[0] == '#') {
@@ -93,14 +75,13 @@ function renderLine(lineDiv, evt) {
 }
 
 
-function extractSpan(elem, delim, className, isChild) {
+function extractSpan(parent, elem, delim, className, isChild) {
   isChild = isChild || false;
 
-  console.log('extractSpan', elem, delim, className);
+  console.log('extractSpan', parent, elem, delim, className, isChild);
 
   if (elem.nodeName == '#text') {
     var subStrings = elem.textContent.split(delim);
-    var parent = elem.parentElement;
     parent.removeChild(elem);
 
     console.log('substrings', subStrings, subStrings.length);
@@ -148,11 +129,11 @@ function extractSpan(elem, delim, className, isChild) {
 
     for (var i=0; i<nonLiveChildren.length; i++) {
       console.log ('non-live-child', i)
-      extractSpan(nonLiveChildren[i], delim, className, true);
+      extractSpan(elem, nonLiveChildren[i], delim, className, true);
     }
 
     if (isChild) {
-      elem.parentElement.appendChild(elem)
+      parent.appendChild(elem)
     }
   }
 }
@@ -175,17 +156,30 @@ var keys = {
 }
 
 var docParts = expandCharClassKeys({
-  // root elem
   '*': {
-    keypress: matchRuleset([
-      [always, renderLineEvt]
-    ]),
-    
+    // grab things that have changed
     keydown: matchRuleset([
-      [keyCode(keys.ENTER)      , clearToParagraph],
-      [keyCodes([
-        keys.DELETE,
-        keys.BACKSPACE])        , renderLineEvt],
+      [always,  markForChange],
+    ]),
+
+    // on input change, update only the things that have changed
+  },
+
+  'mdedit': {
+    input: matchRuleset([
+      [always,  renderChanges],
+    ]),
+  },
+
+  'h[1,2,3,4,5,6]': {
+    keydown: matchRuleset([
+      //[keyCode(keys.ENTER), clearToParagraph]
+    ])
+  },
+
+  'p': {
+    keydown: matchRuleset([
+      [keyCode(keys.ENTER), clearToParagraph]
     ])
   }
 });
@@ -235,21 +229,30 @@ function keyCodes(codes){
 // Event Implementors //
 ////////////////////////
 
-function renderLineEvt(host, target, evt) {
-  while(target.parentElement != host && target != host) {
+function markForChange(host, target, evt) {
+  while (target.parentElement != host && target != host) {
     target = target.parentElement;
   }
-  // use default behavior if backspace from beginning of line
-  if (evt.keyCode == keys.BACKSPACE && getCursorPos(target) == 0) {
 
-  } else {
-    renderLine(target, evt);
+  console.log('marking for change', target);
+
+  target.setAttribute('changed', true);
+}
+
+function renderChanges(host, target, evt) {
+  // TODO only update
+  for (var i=0; i<host.children.length; i++) {
+    if (host.children[i].getAttribute('changed')) {
+      renderLine(host, host.children[i], evt);
+      host.children[i].removeAttribute('changed');
+    }
   }
 }
 
 function clearToParagraph(host, target, evt) {
   console.log('clearToParagraph');
   evt.preventDefault();
+
   var p = document.createElement('div');
   p.className = 'p';
 
@@ -413,7 +416,7 @@ function getCursorPos(div) {
     }
   }
 
-  return 0;
+  return -1;
 }
 
 // TODO make more efficient or something
