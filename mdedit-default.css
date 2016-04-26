@@ -3,7 +3,7 @@
 
 .mdedit, 
 .mdedit > div:first-child,
-.mdedit > .p {
+.mdedit .p {
 	min-height: 1em;
 }
 
@@ -14,10 +14,18 @@
 .mdedit .h5 { opacity: 0.6; font-size: 14px; font-style: italic; }
 .mdedit .h6 { opacity: 0.6; font-size: 12px; font-style: italic; }
 
-.mdedit .code {
-	font-family: monospace;
+.mdedit .code,
+.mdedit .italic,
+.mdedit .bold
+.mdedit .underline
+{
 	display: inline;
 }
+
+.mdedit .code 		{ font-family: 		monospace; }
+.mdedit .italic 	{ font-style: 		italic; }
+.mdedit .bold 		{ font-weight: 		bold; }
+.mdedit .underline 	{ text-decoration: 	underline; }
 
 .mdedit p {
 	margin-top: 12px;
