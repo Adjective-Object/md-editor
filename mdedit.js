@@ -182,10 +182,10 @@ var docParts = expandCharClassKeys({
     ]),
     
     keydown: matchRuleset([
-      [keyCode(keys.ENTER)    , clearToParagraph],
+      [keyCode(keys.ENTER)      , clearToParagraph],
       [keyCodes([
         keys.DELETE,
-        keys.BACKSPACE])       , renderLineEvt]
+        keys.BACKSPACE])        , renderLineEvt],
     ])
   }
 });
@@ -239,7 +239,12 @@ function renderLineEvt(host, target, evt) {
   while(target.parentElement != host && target != host) {
     target = target.parentElement;
   }
-  renderLine(target, evt);
+  // use default behavior if backspace from beginning of line
+  if (evt.keyCode == keys.BACKSPACE && getCursorPos(target) == 0) {
+
+  } else {
+    renderLine(target, evt);
+  }
 }
 
 function clearToParagraph(host, target, evt) {
