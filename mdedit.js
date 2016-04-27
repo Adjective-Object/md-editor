@@ -1,7 +1,7 @@
 // external use function that sets up the event hooks
 function mdedit(host) {
-  host.addEventListener('input', dispatchEvt(host));
   host.addEventListener('keydown',  dispatchEvt(host));
+  host.addEventListener('input',    renderChanges(host));
   //host.addEventListener('keydown', dispatchSpecialKeypress(host));
 }
 
@@ -16,13 +16,16 @@ function dispatchEvt(host) {
     var node = tagOf(target);
 
     // dispatch based on the node's class if a handler exists
-    var classKey = evt.target.classList[0];
+    var classKey = node.classList[0];
+    console.log(classKey);
+    var ignoreDefault = false;
     if (docParts[classKey] != undefined &&
         docParts[classKey][evt.type] != undefined ) {
-      docParts[classKey][evt.type](host, target, evt);
+      ignoreDefault = docParts[classKey][evt.type](host, target, evt);
     }
 
-    if (docParts['*'] != undefined &&
+    if (!ignoreDefault && 
+        docParts['*'] != undefined &&
         docParts['*'][evt.type] != undefined ) {
       docParts['*'][evt.type](host, target, evt);
     }
@@ -41,7 +44,11 @@ function dispatchEvt(host) {
 // Render Function //
 /////////////////////
 
-function renderLine(host, lineDiv, evt) {
+ulRegex = /\s*(-){1}[^-]/;
+olRegex = /\s*[0123456789]+(\.|\)|:)/;
+sepRegex = /---.*/;
+
+function renderLine(host, lineDiv) {
   var lineText = lineDiv.textContent;  
   var cursorPos = getCursorPos(lineDiv);
 
@@ -68,7 +75,18 @@ function renderLine(host, lineDiv, evt) {
     lineDiv.className = 'h' + countHeaderHashes(lineText)
     return;
   }
-
+  else if (sepRegex.test(lineText)) {
+    lineDiv.className = 'sep'
+  }
+  else if (ulRegex.test(lineText)) {
+    lineDiv.className = 'ul'
+    lineDiv.classList.add('depth-' + calculateDepth(host, lineDiv));
+  }
+  else if (olRegex.test(lineText)) {
+    lineDiv.className = 'ol'
+    lineDiv.classList.add('depth-' + calculateDepth(host, lineDiv));
+  }
+  // default to paragraph
   else {
     lineDiv.className = 'p'
   }
@@ -154,46 +172,69 @@ var keys = {
   DELETE:     46, 
   TAB:        '\t'.charCodeAt(0),
 }
+var asciiKeys = makeKeySet(' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~');
 
 var docParts = expandCharClassKeys({
+  // 
   '*': {
     // grab things that have changed
-    keydown: matchRuleset([
-      [always,  markForChange],
-    ]),
+    keydown: matchRuleset({
+      actions: [[always,  markForChange]],
+    }),
 
     // on input change, update only the things that have changed
   },
 
-  'mdedit': {
-    input: matchRuleset([
-      [always,  renderChanges],
-    ]),
-  },
-
   'h[1,2,3,4,5,6]': {
-    keydown: matchRuleset([
-      //[keyCode(keys.ENTER), clearToParagraph]
-    ])
+    keydown: matchRuleset({
+      actions: []
+    })
   },
 
-  'p': {
-    keydown: matchRuleset([
-      [keyCode(keys.ENTER), clearToParagraph]
-    ])
+  p: {
+    keydown: matchRuleset({
+    })
+  },
+
+  '[ul,ol]': {
+    keydown: matchRuleset({
+      actions: [
+        [keyCode(keys.TAB),   elevateListElement],
+        [keyCode(keys.ENTER), continueListElement]
+      ],
+    })
+  },
+
+  sep: {
+    keydown: matchRuleset({
+      actions: [
+        [keyCode(keys.BACKSPACE)      , markForChange],
+        [keyCodes(asciiKeys)          , clearToParagraph],
+      ],
+      ignoreDefault: true,
+    })
   }
 });
 
-function matchRuleset(mappings) {
+function matchRuleset(opt) {
+  var mappings = opt.actions || [];
+  var ignoreDefault = opt.ignoreDefault;
+  if (ignoreDefault === undefined) {
+    ignoreDefault = false;
+  }
+
   //console.log(mappings);
   return function(host, target, evt) {
     var content = target.textContent;
+    var shouldIgnore = false;
     for(var i=0; i<mappings.length; i++) {
       if (mappings[i][0](content, evt)) {
         // console.log('triggered', i);
         mappings[i][1](host, target, evt);
+        shouldIgnore = ignoreDefault;
       }
     }
+    return shouldIgnore;
   }
 }
 
@@ -233,42 +274,85 @@ function markForChange(host, target, evt) {
   while (target.parentElement != host && target != host) {
     target = target.parentElement;
   }
-
   console.log('marking for change', target);
 
   target.setAttribute('changed', true);
 }
 
-function renderChanges(host, target, evt) {
-  // TODO only update
-  for (var i=0; i<host.children.length; i++) {
-    if (host.children[i].getAttribute('changed')) {
-      renderLine(host, host.children[i], evt);
-      host.children[i].removeAttribute('changed');
+function renderChanges(host) {
+  return function(evt) {
+    for (var i=0; i<host.children.length; i++) {
+      if (host.children[i].getAttribute('changed')) {
+        renderLine(host, host.children[i]);
+        host.children[i].removeAttribute('changed');
+      }
     }
   }
 }
 
+function clearToType(host, target, evt, className) {
+    console.log('clearToParagraph');
+    evt.preventDefault();
+
+    var p = document.createElement('div');
+    p.className = className;
+
+    // create the next element
+    var targetNode = tagOf(target);
+    targetNode.parentElement.insertBefore(
+      p, targetNode.nextSibling);
+
+    var selection = window.getSelection();
+    var cursorOff = selection.anchorOffset;
+    var ptext = document.createTextNode(target.textContent.substring(cursorOff))
+    p.appendChild(ptext);
+    target.textContent = target.textContent.substring(0, cursorOff);
+
+    // move cursor to target of next element
+    moveSelection(ptext, 0);
+}
 function clearToParagraph(host, target, evt) {
-  console.log('clearToParagraph');
+  clearToType(host,target,evt,'p');
+}
+function clearToSame(host, target, evt) {
+  clearToType(host,target,evt,lineOf(host, target).className);
+}
+
+function elevateListElement(host, target, evt) {
   evt.preventDefault();
+  var target = tagOf(target);
+  // get the depth class
+  var depthClass = 'depth-1';
+  for (var i=0; i < target.classList.length; i++) {
+    if(target.classList[i].startsWith('depth-')) {
+      depthClass = target.classList[i];
+      break;
+    }
+  }
 
-  var p = document.createElement('div');
-  p.className = 'p';
+  var newDepth = parseInt(depthClass.substring('depth-'.length)) + (evt.shiftKey ? -1 : 1);
+  // strip the leading bit and re-evaluate the line
+  if (newDepth == 0) {
+    target.textContent = stripListElemHead(target.textContent);
+    renderLine(host, lineOf(host, target));
+  }
+  else {
+    var newDepthClass = 'depth-' + Math.min(6, newDepth);
 
-  // create the next element
-  var targetNode = tagOf(target);
-  targetNode.parentElement.insertBefore(
-    p, targetNode.nextSibling);
+    target.classList.remove(depthClass);
+    target.classList.add(newDepthClass)    
+  }
+}
 
-  var selection = window.getSelection();
-  var cursorOff = selection.anchorOffset;
-  var ptext = document.createTextNode(target.textContent.substring(cursorOff))
-  p.appendChild(ptext);
-  target.textContent = target.textContent.substring(0, cursorOff);
-
-  // move cursor to target of next element
-  moveSelection(ptext, 0);
+function continueListElement(host, target, evt) {
+  console.log('continueListElement');
+  evt.preventDefault();
+  if (stripListElemHead(target.textContent).length > 0) {
+    clearToSame(host, target, evt)
+    lineOf(host, target).nextSibling.textContent = nextListElementHeader(target.textContent);
+  } else {
+    clearToParagraph(host, target, evt);
+  }
 }
 
 //////////
@@ -488,4 +572,38 @@ function flattenDeletes(str){
     }
   }
   return str;
+}
+
+function makeKeySet(str) {
+  set = []
+  for (var i=0; i<str.length; i++) {
+    set.push(str.charCodeAt(i));
+  }
+  return set;
+}
+
+function lineOf(host, elem) {
+  while(elem.parentElement != host && elem != host) {
+    elem = elem.parentElement;
+  }
+  return elem
+}
+
+function stripListElemHead(str) {
+  // TODO actually implement things
+  return str.substring(2);
+}
+
+function nextListElementHeader(str) {
+  // TODO actually implement this
+  return '-\xA0'
+}
+function calculateListElemDepth(str) {
+  for (depth = 0; str[depth] == '\xA0'; elem = elem.parentElement) {
+    if (elem == undefined) {
+      return -1;
+    }
+    depth++;
+  }
+  return depth;
 }

@@ -2,9 +2,9 @@
 }
 
 .mdedit, 
-.mdedit > div:first-child,
-.mdedit .p {
-	min-height: 1em;
+.mdedit > div {
+	min-height: 16px;
+	font-size: 16px;
 }
 
 .mdedit .h1 { opacity: 0.6; font-size: 32px; font-weight: bold; }
@@ -26,6 +26,30 @@
 .mdedit .italic 	{ font-style: 		italic; }
 .mdedit .bold 		{ font-weight: 		bold; }
 .mdedit .underline 	{ text-decoration: 	underline; }
+
+.mdedit .sep {
+	position: relative;
+	line-height: 16px;
+	color: rgba(0,0,0,0.5);
+}
+.mdedit .sep:after {
+	content: '';
+	position: absolute;
+	top: 40%;
+	bottom: 40%;
+	left:0;
+	right:0;
+
+	border-top: 	2px solid rgba(0,0,0,0.3);
+	border-bottom: 	2px solid rgba(0,0,0,0.3);
+}
+
+@for $i from 1 through 6 {
+	.mdedit .ol.depth-#{$i},
+	.mdedit .ul.depth-#{$i} {
+		padding-left: (0.5 + ($i - 1)) * 1em;
+	}	
+}
 
 .mdedit p {
 	margin-top: 12px;
