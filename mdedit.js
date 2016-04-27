@@ -396,8 +396,9 @@ function continueListElement(host, target, evt) {
   if (stripListElemHead(target.textContent).length > 0) {
     clearToSame(host, target, evt)
     var newKid = lineOf(host, target).nextSibling;
-    newKid.textContent = nextListElementHeader(target.textContent);
-    setCursorPos(newKid, newKid.textContent.length);
+    var nextHeader = nextListElementHeader(target.textContent)
+    newKid.textContent = nextHeader + newKid.textContent;
+    setCursorPos(newKid, nextHeader.length);
   } else {
     clearToParagraph(host, target, evt)
   }
