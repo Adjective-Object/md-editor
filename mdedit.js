@@ -45,7 +45,7 @@ function dispatchEvt(host) {
 /////////////////////
 
 ulRegex = /\s*(-){1}\s/;
-olRegex = /\s*[0123456789]+(\.|\)|:)/;
+olRegex = /\s*[0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ]+(\.|\)|:)\s/;
 sepRegex = /---.*/;
 
 listElemClassRegex = /^(ul|ol).*/;
@@ -364,7 +364,11 @@ function elevateListElement(host, target, evt) {
     }
   }
 
-  var newDepth = parseInt(depthClass.substring('depth-'.length)) + (evt.shiftKey ? -1 : 1);
+  var newDepth = Math.min(6, 
+    parseInt(depthClass.substring('depth-'.length)) + 
+    (evt.shiftKey ? -1 : 1)
+  );
+
 
   // get state variables before editing the text
   var lineDiv = lineOf(host, target);
@@ -639,8 +643,72 @@ function stripListElemHead(str) {
 }
 
 function nextListElementHeader(str) {
-  // TODO actually implement this
-  return '-\xA0'
+  var numLeadingSpaces = 0;
+  while(/\s/.test(str.substring(numLeadingSpaces, numLeadingSpaces + 1))) {
+    numLeadingSpaces++;
+  }
+
+  // case of digits
+  var digRegex = /[0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ]/;
+  if (digRegex.test(str.substring(numLeadingSpaces, numLeadingSpaces+1))) {
+    var numDigits = 0;
+    while (digRegex.test(
+      str.substring(
+        numLeadingSpaces + numDigits, 
+        numLeadingSpaces + numDigits + 1))) {
+      numDigits++;
+    }
+
+    var numDigits = numDigits + numLeadingSpaces
+
+    return (str.substring(0,numLeadingSpaces) + 
+      headerCharSuccessor(str.substring(numLeadingSpaces, numDigits)) +
+      str.substring(numDigits, numDigits + 1) + '\xA0');
+  }
+  else {
+    return (str.substring(0,numLeadingSpaces) + 
+      (str.substring(numLeadingSpaces, numLeadingSpaces + 1)) +
+      '\xA0');
+  }
+}
+
+function headerCharSuccessor(str) {
+  function incrementHeader(alphabet, str) {
+    var index = str.length - 1;
+    var carry = 1
+    while(index > -1) {
+      var charInd = alphabet.indexOf(str.charAt(index));
+      if (charInd == alphabet.length - 1) {
+        str = (
+          str.substring(0, index) + 
+          alphabet.charAt(0) + 
+          str.substring(index + 1)
+        );
+        index--;
+      }
+
+      else {
+        return (
+          str.substring(0, index) + 
+          alphabet.charAt(charInd + 1) + 
+          str.substring(index + 1));
+      }
+    }
+
+    return alphabet.charAt(0) + str;
+  }
+
+  if (/[0123456789]+/.test(str)) {
+    return "" + (parseInt(str) + 1);
+  }
+
+  if (/[abcdefghijklmnopqrstuvwxyz]+/.test(str)) {
+    return incrementHeader('abcdefghijklmnopqrstuvwxyz', str);
+  }
+  if (/[ABCDEFGHIJKLMNOPQRSTUVWXYZ]+/.test(str)) {
+    return incrementHeader('ABCDEFGHIJKLMNOPQRSTUVWXYZ', str);
+ 
+  }
 }
 
 function calculateListElemDepth(elem) {
