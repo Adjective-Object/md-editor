@@ -44,13 +44,24 @@ function dispatchEvt(host) {
 // Render Function //
 /////////////////////
 
-ulRegex = /\s*(-){1}[^-]/;
+ulRegex = /\s*(-){1}\s/;
 olRegex = /\s*[0123456789]+(\.|\)|:)/;
 sepRegex = /---.*/;
 
-function renderLine(host, lineDiv) {
+listElemClassRegex = /^(ul|ol).*/;
+
+function renderLine(host, lineDiv, opt) {
+  if (opt == undefined) {
+    opt = {};
+  }
+
+  // because 'ul' and 'ol' divs are special in that
+  // the state of the next div depends on this div,
+  // we note that the chid should be re-evaluated at end
+  var evalSuccessor = listElemClassRegex.test(lineDiv.className);
+
   var lineText = lineDiv.textContent;  
-  var cursorPos = getCursorPos(lineDiv);
+  var cursorPos = opt.originalCursor || getCursorPos(lineDiv);
 
   // render the content of the line
   console.log('    extracting spans from', lineDiv);
@@ -62,34 +73,55 @@ function renderLine(host, lineDiv) {
 
   // insert cursor at saved position relative to line
   console.log('    setting cursor pos');
-  if (cursorPos != -1) {
-    setCursorPos(lineDiv, cursorPos);
-  }
 
-
-
-
+  var cursorPosAdjustment = 0;
 
   // determine class of this line
-  if (lineText[0] == '#') {
-    lineDiv.className = 'h' + countHeaderHashes(lineText)
-    return;
+  var lineClass = classifyLine(lineText);
+  switch(lineClass) {
+    case 'h':
+      lineDiv.className = 'h' + countHeaderHashes(lineText)
+      break;
+
+    case 'ul':
+    case 'ol':
+      lineDiv.className = lineClass;
+
+      var depth = calculateListElemDepth(lineDiv);
+      var oldTextContent = opt.originalText || lineDiv.textContent
+      console.log('old text content', oldTextContent);
+      lineDiv.textContent = fixListElementSpaces(lineDiv.textContent, depth);
+      cursorPosAdjustment += (lineDiv.textContent.length - oldTextContent.length);
+      console.log(cursorPos, cursorPosAdjustment);
+
+      lineDiv.classList.add('depth-' + depth);
+
+      break;
+
+    case 'sep':
+    case 'p':
+    default:
+      lineDiv.className = lineClass;
   }
-  else if (sepRegex.test(lineText)) {
-    lineDiv.className = 'sep'
+
+  if (cursorPos != -1) {
+    setCursorPos(lineDiv, cursorPos + cursorPosAdjustment);
   }
-  else if (ulRegex.test(lineText)) {
-    lineDiv.className = 'ul'
-    lineDiv.classList.add('depth-' + calculateDepth(host, lineDiv));
+
+  if (evalSuccessor && lineDiv.nextSibling) {
+    console.log('evaluating next child', lineDiv.nextSibling);
+    renderLine(host, lineDiv.nextSibling);
   }
-  else if (olRegex.test(lineText)) {
-    lineDiv.className = 'ol'
-    lineDiv.classList.add('depth-' + calculateDepth(host, lineDiv));
-  }
-  // default to paragraph
-  else {
-    lineDiv.className = 'p'
-  }
+
+
+}
+
+function classifyLine(lineText) {
+  if (lineText[0] == '#') { return 'h'; }
+  else if (sepRegex.test(lineText)) { return 'sep'; }
+  else if (ulRegex.test(lineText)) { return 'ul'; }
+  else if (olRegex.test(lineText)) { return 'ol'; }
+  else { return 'p'; }
 }
 
 
@@ -202,6 +234,7 @@ var docParts = expandCharClassKeys({
         [keyCode(keys.TAB),   elevateListElement],
         [keyCode(keys.ENTER), continueListElement]
       ],
+      ignoreDefault: true,
     })
   },
 
@@ -319,6 +352,7 @@ function clearToSame(host, target, evt) {
 }
 
 function elevateListElement(host, target, evt) {
+  console.log('elevate')
   evt.preventDefault();
   var target = tagOf(target);
   // get the depth class
@@ -331,27 +365,37 @@ function elevateListElement(host, target, evt) {
   }
 
   var newDepth = parseInt(depthClass.substring('depth-'.length)) + (evt.shiftKey ? -1 : 1);
-  // strip the leading bit and re-evaluate the line
+
+  // get state variables before editing the text
+  var lineDiv = lineOf(host, target);
+  var cursorPos = getCursorPos(lineDiv);
+  var orgText = target.textContent;
+
+  // fix the leading spaces
+  target.textContent = fixListElementSpaces(target.textContent, newDepth);
+
+  // strip the leading header if we are going to depth 0
   if (newDepth == 0) {
     target.textContent = stripListElemHead(target.textContent);
-    renderLine(host, lineOf(host, target));
   }
-  else {
-    var newDepthClass = 'depth-' + Math.min(6, newDepth);
 
-    target.classList.remove(depthClass);
-    target.classList.add(newDepthClass)    
-  }
+  // re-render this element using the original text & cursor for reference
+  renderLine(host, lineDiv, {
+    originalCursor: cursorPos,
+    originalText: orgText
+  });
+
 }
 
 function continueListElement(host, target, evt) {
-  console.log('continueListElement');
   evt.preventDefault();
   if (stripListElemHead(target.textContent).length > 0) {
     clearToSame(host, target, evt)
-    lineOf(host, target).nextSibling.textContent = nextListElementHeader(target.textContent);
+    var newKid = lineOf(host, target).nextSibling;
+    newKid.textContent = nextListElementHeader(target.textContent);
+    setCursorPos(newKid, newKid.textContent.length);
   } else {
-    clearToParagraph(host, target, evt);
+    clearToParagraph(host, target, evt)
   }
 }
 
@@ -598,12 +642,39 @@ function nextListElementHeader(str) {
   // TODO actually implement this
   return '-\xA0'
 }
-function calculateListElemDepth(str) {
-  for (depth = 0; str[depth] == '\xA0'; elem = elem.parentElement) {
-    if (elem == undefined) {
-      return -1;
+
+function calculateListElemDepth(elem) {
+  var leadingSpaces = getLeadingSpaces(elem.textContent);
+  
+  depth = 1;
+  var ref = elem.previousSibling;
+  while(ref != null) {
+    var refLeadingSpaces = getLeadingSpaces(ref.textContent);
+    if (! listElemClassRegex.test(ref.className)) {
+      break;
     }
-    depth++;
+    if (leadingSpaces > refLeadingSpaces) {
+      depth ++;
+      leadingSpaces = refLeadingSpaces;
+    }
+    ref = ref.previousSibling;
   }
   return depth;
+}
+
+function getLeadingSpaces(str) {
+  var ind = 0;
+  while (/\s/.test(str.substring(ind, ind+1))) {
+    // console.log(str, '"'+str.substring(ind, ind+1) + '"');
+    ind ++;
+  }
+  // console.log(str, str.substring(ind, ind+1));
+  // console.log('leading spaces', ind);
+  return ind;
+}
+
+function fixListElementSpaces(str, depth) {
+  // console.log('fixing spaces to', depth)
+  // console.log('"' + ' '.repeat(depth) + '"');
+  return str.replace(/^\s*/, ' '.repeat(depth));
 }
