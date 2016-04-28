@@ -1,6 +1,7 @@
 // external use function that sets up the event hooks
 function mdedit(host) {
   host.addEventListener('keydown',  dispatchEvt(host));
+  host.addEventListener('keypress',  dispatchEvt(host));
   host.addEventListener('input',    renderChanges(host));
   //host.addEventListener('keydown', dispatchSpecialKeypress(host));
 }
@@ -44,9 +45,9 @@ function dispatchEvt(host) {
 // Render Function //
 /////////////////////
 
-ulRegex = /\s*(-){1}\s/;
-olRegex = /\s*[0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ]+(\.|\)|:)\s/;
-sepRegex = /---.*/;
+ulRegex = /^\s*(-){1}\s/;
+olRegex = /^\s*[0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ]+(\.|\)|:)\s/;
+sepRegex = /^---.*/;
 
 listElemClassRegex = /^(ul|ol).*/;
 
@@ -99,6 +100,24 @@ function renderLine(host, lineDiv, opt) {
       break;
 
     case 'sep':
+      // if there is trailing text, clear it to the next line
+      // and mark the successor for re-evaluation.
+      // also move the cursor pos to the end of the next line if the
+      // cursor is in this line
+      var sepText = lineDiv.textContent;
+      if (sepText.length > 3) {
+        lineDiv.textContent = '---';
+        var successorDiv = document.createElement('div');
+        successorDiv.textContent = sepText.substring(3);
+        host.insertBefore(successorDiv, lineDiv.nextSibling)
+        if (cursorPos >=0 ) {
+          cursorPos = -1;
+          setCursorPos(successorDiv, sepText.length - 3);
+        }
+      }
+      lineDiv.className = lineClass;
+      break;
+
     case 'p':
     default:
       lineDiv.className = lineClass;
@@ -211,7 +230,8 @@ var docParts = expandCharClassKeys({
   '*': {
     // grab things that have changed
     keydown: matchRuleset({
-      actions: [[always,  markForChange]],
+      actions: [
+      [always,  markForChange]],
     }),
 
     // on input change, update only the things that have changed
@@ -234,19 +254,8 @@ var docParts = expandCharClassKeys({
         [keyCode(keys.TAB),   elevateListElement],
         [keyCode(keys.ENTER), continueListElement]
       ],
-      ignoreDefault: true,
     })
   },
-
-  sep: {
-    keydown: matchRuleset({
-      actions: [
-        [keyCode(keys.BACKSPACE)      , markForChange],
-        [keyCodes(asciiKeys)          , clearToParagraph],
-      ],
-      ignoreDefault: true,
-    })
-  }
 });
 
 function matchRuleset(opt) {
@@ -284,14 +293,32 @@ function specialKeydown(str, evt) {
           evt.keyCode == keys.DELETE);
 }
 
-function keyCode(code){
-  return function(str, evt){ return evt.keyCode == code; };
+function keyCode(code, opt){
+  opt = opt || {};
+  return function(str, evt){ 
+    if (opt.ctrl ^ evt.ctrlKey) { return false; }
+    if (opt.shift ^ evt.shiftKey) { return false; }
+    if (opt.alt ^ evt.altKey) { return false; }
+
+    return evt.keyCode == code;
+  };
 }
 
-function keyCodes(codes){
-  return function(str, evt){ 
+function keyCodes(codes, opt){
+  opt = opt || {};
+
+  return function(str, evt){
+
+    console.log(evt.keyCode);
+
     for (var i=0; i<codes.length; i++) {
       console.log(evt.keyCode, codes[i]);
+
+      // if modifier requires ctrl key and ctrl key not down
+      if (opt.ctrl ^ evt.ctrlKey) { return false; }
+      if (opt.shift ^ evt.shiftKey) { return false; }
+      if (opt.alt ^ evt.altKey) { return false; }
+
       if( evt.keyCode == codes[i] ) return true;
     };
     return false;
@@ -310,6 +337,12 @@ function markForChange(host, target, evt) {
   console.log('marking for change', target);
 
   target.setAttribute('changed', true);
+
+  // on backspace, mark predecessor for re-evaluation
+  if(evt.keyCode == keys.BACKSPACE) {
+    var prev = lineOf(host, target).previousSibling;
+    if (prev) {prev.setAttribute('changed', true);}
+  }
 }
 
 function renderChanges(host) {
@@ -343,7 +376,12 @@ function clearToType(host, target, evt, className) {
 
     // move cursor to target of next element
     moveSelection(ptext, 0);
+
+    // re-evaluate this and the other thing
+    renderLine(host, lineOf(host, target));
+    renderLine(host, lineOf(host, p));
 }
+
 function clearToParagraph(host, target, evt) {
   clearToType(host,target,evt,'p');
 }

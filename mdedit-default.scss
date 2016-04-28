@@ -30,18 +30,17 @@
 .mdedit .sep {
 	position: relative;
 	line-height: 16px;
-	color: rgba(0,0,0,0.5);
+	color: #666666;
 }
 .mdedit .sep:after {
 	content: '';
 	position: absolute;
-	top: 40%;
-	bottom: 40%;
+	top: 50%;
+	bottom: 50%;
 	left:0;
 	right:0;
 
-	border-top: 	2px solid rgba(0,0,0,0.3);
-	border-bottom: 	2px solid rgba(0,0,0,0.3);
+	border-top: 2px solid #666666;
 }
 
 @for $i from 1 through 6 {
