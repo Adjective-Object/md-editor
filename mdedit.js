@@ -231,7 +231,8 @@ var docParts = expandCharClassKeys({
     // grab things that have changed
     keydown: matchRuleset({
       actions: [
-      [always,  markForChange]],
+      [keyCodes([keys.BACKSPACE, keys.DELETE]) , checkAndDeleteBlockDiv],
+      [always                                 , markForChange]]
     }),
 
     // on input change, update only the things that have changed
@@ -440,6 +441,33 @@ function continueListElement(host, target, evt) {
   } else {
     clearToParagraph(host, target, evt)
   }
+}
+
+// when the backspace or delete key is pressed, 
+// checks if the cursor is at the end or beginning of a line
+// and if the following or preceeding div is a 'block div',
+// i.e. a 'sep'
+// If that is the case, it deletes the whole div
+function checkAndDeleteBlockDiv(host, target, evt) {
+  var tline = lineOf(host, target);
+  var cpos = getCursorPos(tline);
+  if (cpos == 0 && 
+      evt.keyCode == keys.BACKSPACE && 
+      isBlockDiv(tline.previousSibling)) {
+    evt.preventDefault();
+    host.removeChild(tline.previousSibling);
+  }
+
+  else if (cpos == tline.textContent.length && 
+      evt.keyCode == keys.DELETE &&
+      isBlockDiv(tline.nextSibling)) {
+    evt.preventDefault();
+    host.removeChild(tline.nextSibling);
+  }
+}
+
+function isBlockDiv(div) {
+  return div.className.startsWith('sep');
 }
 
 //////////
