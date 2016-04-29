@@ -1,57 +1,46 @@
-// external use function that sets up the event hooks
+/** Main API hook that sets up event listeners on an mdedit-host div 
+@param {DomNode} host - The 'host' div. that mdedit will listen for events on
+*/
 function mdedit(host) {
-  host.addEventListener('keydown',  dispatchEvt(host));
-  host.addEventListener('keypress',  dispatchEvt(host));
-  host.addEventListener('input',    renderChanges(host));
-  //host.addEventListener('keydown', dispatchSpecialKeypress(host));
+  host.addEventListener('keydown' , dispatchEvt(host));
+  host.addEventListener('keypress', dispatchEvt(host));
+  host.addEventListener('input'   , renderChanges(host));
 }
 
 
-// Dispatcher for the keypress event,
-// allows us to do incremental changes to the div
-// and separate logic with docParts
-function dispatchEvt(host) {
-  return function dispatch(evt) {
-    var selection = window.getSelection();
-    var target = selection.anchorNode;
-    var node = tagOf(target);
+/////////////////////////////////
+// Render Function And Helpers //
+/////////////////////////////////
 
-    // dispatch based on the node's class if a handler exists
-    var classKey = node.classList[0];
-    console.log(classKey);
-    var ignoreDefault = false;
-    if (docParts[classKey] != undefined &&
-        docParts[classKey][evt.type] != undefined ) {
-      ignoreDefault = docParts[classKey][evt.type](host, target, evt);
-    }
-
-    if (!ignoreDefault && 
-        docParts['*'] != undefined &&
-        docParts['*'][evt.type] != undefined ) {
-      docParts['*'][evt.type](host, target, evt);
-    }
-
-    // otherwise, just re-render the line the edit happend on
-    // else {
-    //   while(target.parentElement != host && target != host) {
-    //     target = target.parentElement;
-    //   }      
-    //   renderLine(target, evt);
-    // }
-  }
-}
-
-/////////////////////
-// Render Function //
-/////////////////////
-
+/** @const ulRegex - a regex identifying unordered list elements*/
 ulRegex = /^\s*(-){1}\s/;
+
+/** @const olRegex - a regex identifying ordered list elements*/
 olRegex = /^\s*[0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ]+(\.|\)|:)\s/;
+
+/** @const sepRegex - a regex identifying line separator elements*/
 sepRegex = /^---.*/;
 
 listElemClassRegex = /^(ul|ol).*/;
 
+/** Takes a div in the mdedit host div and applies the appropriate
+class tags based on the text content.
+
+@param {DomNode} host - the host div
+@param {DomNode} lineDiv - the line to re-evaluate
+@param {DomNode} opt - optional options dictionary
+
+  Original position of cursor and text may be used when the div's 
+  textContent is modified before involking renderLine, so that renderLine
+  can correctly restore the position of the cursor after modification.
+
+@param {string} opt.originalCursor - original position of cursor
+@param {string} opt.originalText - original text of div
+
+*/
 function renderLine(host, lineDiv, opt) {
+  console.log('rendering line', lineDiv);
+  console.log('host div', host);
   if (opt == undefined) {
     opt = {};
   }
@@ -59,7 +48,11 @@ function renderLine(host, lineDiv, opt) {
   // because 'ul' and 'ol' divs are special in that
   // the state of the next div depends on this div,
   // we note that the chid should be re-evaluated at end
-  var evalSuccessor = listElemClassRegex.test(lineDiv.className);
+  var evalSuccessor = (
+    listElemClassRegex.test(lineDiv.className) && 
+    lineDiv.nextSibling && 
+    listElemClassRegex.test(lineDiv.nextSibling.className)
+  );
 
   var lineText = lineDiv.textContent;  
   var cursorPos = opt.originalCursor || getCursorPos(lineDiv);
@@ -73,8 +66,6 @@ function renderLine(host, lineDiv, opt) {
   extractSpan(host, lineDiv, '_'  , 'underline');
 
   // insert cursor at saved position relative to line
-  console.log('    setting cursor pos');
-
   var cursorPosAdjustment = 0;
 
   // determine class of this line
@@ -135,6 +126,9 @@ function renderLine(host, lineDiv, opt) {
 
 }
 
+/** Helper function to classify a line based on it's text content 
+@param {string} lineText - text content of div
+*/
 function classifyLine(lineText) {
   if (lineText[0] == '#') { return 'h'; }
   else if (sepRegex.test(lineText)) { return 'sep'; }
@@ -143,19 +137,33 @@ function classifyLine(lineText) {
   else { return 'p'; }
 }
 
+/** Recursively extracts an element from a line div based on it's text content
+@param {DomNode} parent - immediate parent div of the text being read
+@param {TextNode} elem - node of text that is currently being visited  
+@param {string} delim - string delimiter to break on
+@param {string} className - className to assign to emphasized variables
+@param {boolean} isChild - if the current call is working on a line div or
+                           not. False in the case that it is.
+
+@example
+// with p = <div class='p'>example `to extract`</div>
+extractSpan(host, p, '`', 'code'); 
+// modifies div 'p' such that
+// <div class='p'>example <div class='code'>`to extract`</div></div>
+*/
 
 function extractSpan(parent, elem, delim, className, isChild) {
   isChild = isChild || false;
 
-  console.log('extractSpan', parent, elem, delim, className, isChild);
+  //console.log('extractSpan', parent, elem, delim, className, isChild);
 
   if (elem.nodeName == '#text') {
     var subStrings = elem.textContent.split(delim);
     parent.removeChild(elem);
 
-    console.log('substrings', subStrings, subStrings.length);
+    //console.log('substrings', subStrings, subStrings.length);
     for (var i=0; i<subStrings.length; i++) {
-      console.log('i =', i);
+      //console.log('i =', i);
 
       // inside of tag
       if (i % 2 == 1 && i != subStrings.length - 1) {
@@ -170,8 +178,8 @@ function extractSpan(parent, elem, delim, className, isChild) {
       // otherwise if it's the last element, append it as it's own or conjoin
       // it to the previous last elem
       else if (i % 2 == 1 && i == subStrings.length - 1) {
-        console.log('appending single asterisk child', delim + subStrings[i])
-        console.log(parent.childNodes)
+        // console.log('appending single asterisk child', delim + subStrings[i])
+        // console.log(parent.childNodes)
         var parentLastChild = parent.childNodes[parent.childNodes.length - 1]; 
         if (parentLastChild.nodeName == '#text') {
           parentLastChild.textContent = parentLastChild.textContent + delim + subStrings[i];
@@ -184,7 +192,7 @@ function extractSpan(parent, elem, delim, className, isChild) {
 
       // non span-contained text
       else {
-        console.log('copying over text', subStrings[i])
+        // console.log('copying over text', subStrings[i])
         parent.appendChild(document.createTextNode(subStrings[i]));
       }
     }
@@ -197,7 +205,7 @@ function extractSpan(parent, elem, delim, className, isChild) {
     }
 
     for (var i=0; i<nonLiveChildren.length; i++) {
-      console.log ('non-live-child', i)
+      // console.log ('non-live-child', i)
       extractSpan(elem, nonLiveChildren[i], delim, className, true);
     }
 
@@ -207,14 +215,54 @@ function extractSpan(parent, elem, delim, className, isChild) {
   }
 }
 
-/////////////////////////////////
-// Event Dispatching Strucutre //
-/////////////////////////////////
 
+////////////////////////
+// Event Dispatching  //
+////////////////////////
+
+
+/** Event Dispatcher for arbitrary events
+retruns a dispatcher for events to divs according to the docParts 
+event dispatching / callback declaration
+
+@param {DomNode} host - the host div to listen to events on
+*/
+function dispatchEvt(host) {
+  return function dispatch(evt) {
+    var selection = window.getSelection();
+    var target = selection.anchorNode;
+    var node = tagOf(target);
+
+    // dispatch based on the node's class if a handler exists
+    var classKey = node.classList[0];
+    // console.log('dispatch on target', target);
+    var ignoreDefault = false;
+    if (docParts[classKey] != undefined &&
+        docParts[classKey][evt.type] != undefined ) {
+      ignoreDefault = docParts[classKey][evt.type](host, target, evt);
+    }
+
+    if (!ignoreDefault && 
+        docParts['*'] != undefined &&
+        docParts['*'][evt.type] != undefined ) {
+      docParts['*'][evt.type](host, target, evt);
+    }
+
+    // otherwise, just re-render the line the edit happend on
+    // else {
+    //   while(target.parentElement != host && target != host) {
+    //     target = target.parentElement;
+    //   }      
+    //   renderLine(target, evt);
+    // }
+  }
+}
+
+/** convenience dictionary of some commonly used keycodes */
 var keys = {
-  HASH:   '#'.charCodeAt(0),
-  BACKTICK: '`'.charCodeAt(0),
-  ASTERISK: '*'.charCodeAt(0),
+  HASH:       '#'.charCodeAt(0),
+  BACKTICK:   '`'.charCodeAt(0),
+  ASTERISK:   '*'.charCodeAt(0),
   UNDERSCORE: '_'.charCodeAt(0),
   SPACE:      ' '.charCodeAt(0),
 
@@ -223,8 +271,11 @@ var keys = {
   DELETE:     46, 
   TAB:        '\t'.charCodeAt(0),
 }
+
+/** list of keycodes for all ascii characters during a keypress event */
 var asciiKeys = makeKeySet(' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~');
 
+/** Event mapping dict that defines context-sensitive event handling in mdedit*/
 var docParts = expandCharClassKeys({
   // 
   '*': {
@@ -232,7 +283,7 @@ var docParts = expandCharClassKeys({
     keydown: matchRuleset({
       actions: [
       [keyCodes([keys.BACKSPACE, keys.DELETE]) , checkAndDeleteBlockDiv],
-      [always                                 , markForChange]]
+      [always                                  , markForChange]]
     }),
 
     // on input change, update only the things that have changed
@@ -255,10 +306,35 @@ var docParts = expandCharClassKeys({
         [keyCode(keys.TAB),   elevateListElement],
         [keyCode(keys.ENTER), continueListElement]
       ],
+      ignoreDefault: true
     })
   },
 });
 
+/** Function to map between conditions and event handlers
+@param {Object} opt - 
+  options dictionary mapping from name of event to a series of separate
+  event condition / handler pairs
+@param {Object} opt.(evtName).actions
+  list of (condition, handler) list pairs, where (handler) will be called
+  if (condition) evaluates to true. If multiple conditions are satisfied on 
+  a given string / event pair, all of them will be called in sequence.
+@param {Function} opt.(evtName).actions.(index).(0)
+  function of the form condition(str, evt), taking the string content of the
+  event target and the event object
+@param {Function} opt.(evtName).actions.(index).(1)
+  function of the form handler(host, target, evt), that performs some action
+  to the dom in the event that something should be handled
+
+@example
+matchRuleset({
+    actions: [
+      [keyCode([keys.BACKSPACE]) , checkAndDeleteBlockDiv],
+      [always                    , markForChange]
+    ],
+    ignoreDefault: true
+  })
+*/
 function matchRuleset(opt) {
   var mappings = opt.actions || [];
   var ignoreDefault = opt.ignoreDefault;
@@ -266,8 +342,8 @@ function matchRuleset(opt) {
     ignoreDefault = false;
   }
 
-  //console.log(mappings);
   return function(host, target, evt) {
+    console.log('match ruleset on target', target);
     var content = target.textContent;
     var shouldIgnore = false;
     for(var i=0; i<mappings.length; i++) {
@@ -294,17 +370,41 @@ function specialKeydown(str, evt) {
           evt.keyCode == keys.DELETE);
 }
 
+/** Creates a condition that triggers on a specific keycode.
+Expects a keyboard event (i.e. keypress, keydown, keyup)
+
+@param {Number} code - The keycode to trigger on
+@param {Object} opt - option dictionary
+@param {boolean} opt.ctrlKey
+  Whether the control key needs to be held to trigger the condition
+@param {boolean} opt.shiftKey
+  whether the shift key needs to be held to trigger the condition
+@param {boolean} opt.altKey
+  whether the alt key needs to be held to trigger the condition
+*/
 function keyCode(code, opt){
   opt = opt || {};
   return function(str, evt){ 
-    if (opt.ctrl ^ evt.ctrlKey) { return false; }
-    if (opt.shift ^ evt.shiftKey) { return false; }
-    if (opt.alt ^ evt.altKey) { return false; }
+    if (opt.ctrl  == evt.ctrlKey) { return false; }
+    if (opt.shift == evt.shiftKey) { return false; }
+    if (opt.alt   == evt.altKey) { return false; }
 
     return evt.keyCode == code;
   };
 }
 
+/** Creates a condition that triggers on one of a set of keycodes.
+Expects a keyboard event (i.e. keypress, keydown, keyup)
+
+@param {Number} code - The keycode to trigger on
+@param {Object} opt - option dictionary
+@param {boolean} opt.ctrlKey
+  Whether the control key needs to be held to trigger the condition
+@param {boolean} opt.shiftKey
+  whether the shift key needs to be held to trigger the condition
+@param {boolean} opt.altKey
+  whether the alt key needs to be held to trigger the condition
+*/
 function keyCodes(codes, opt){
   opt = opt || {};
 
@@ -331,7 +431,13 @@ function keyCodes(codes, opt){
 // Event Implementors //
 ////////////////////////
 
+/** Marks a line div as changed (to be re-rendered on the next render pass)
+@param {DomNode} host - A reference to the host dom node
+@param {DomNode} target - The div the event is being applied to
+@param {KeyEvent} evt - event that caused the change
+*/
 function markForChange(host, target, evt) {
+  console.log(host, target);
   while (target.parentElement != host && target != host) {
     target = target.parentElement;
   }
@@ -346,6 +452,10 @@ function markForChange(host, target, evt) {
   }
 }
 
+/** Passes over all line divs (all direct children of the host div)
+And re-renders all that have been marked for change
+@param {DomNode} host - A reference to the host dom node
+*/
 function renderChanges(host) {
   return function(evt) {
     for (var i=0; i<host.children.length; i++) {
@@ -357,6 +467,15 @@ function renderChanges(host) {
   }
 }
 
+/** Creates a new line of some class after the specified line,
+and move the text after the cursor to the new line, if the
+cusror is on the line specified by target
+
+@param {DomNode} host - reference to the host dom node
+@param {DomNode} target - the line div that should be split
+@param {KeyEvent} evt - the keypress event. It will be disabled (preventDefault'd)
+@param {string} className - the name of the class to clear to
+*/
 function clearToType(host, target, evt, className) {
     console.log('clearToParagraph');
     evt.preventDefault();
@@ -376,20 +495,27 @@ function clearToType(host, target, evt, className) {
     target.textContent = target.textContent.substring(0, cursorOff);
 
     // move cursor to target of next element
-    moveSelection(ptext, 0);
+    moveCursor(ptext, 0);
 
     // re-evaluate this and the other thing
     renderLine(host, lineOf(host, target));
     renderLine(host, lineOf(host, p));
 }
 
+//TODO document these clearToX methods
 function clearToParagraph(host, target, evt) {
   clearToType(host,target,evt,'p');
 }
+
 function clearToSame(host, target, evt) {
   clearToType(host,target,evt,lineOf(host, target).className);
 }
 
+/** Indents / unindents a list (ul/ol) element
+@param {DomNode} host - reference to the host dom node
+@param {DomNode} target - the list element line div to be indented
+@param {KeyEvent} evt - the keycode event triggering this indent
+*/
 function elevateListElement(host, target, evt) {
   console.log('elevate')
   evt.preventDefault();
@@ -430,24 +556,45 @@ function elevateListElement(host, target, evt) {
 
 }
 
+/** Continues an ordered/unordered list by appending an element at the same
+indentation level as the target following it. Increments the header as well 
+(e.g, if the current line starts with '1.', the next line will start
+with '2.')
+
+@param {DomNode} host - reference to the host dom node
+@param {DomNode} target - the list element to insert after
+@param {KeyEvent} evt - the key event triggering this insert
+*/
 function continueListElement(host, target, evt) {
   evt.preventDefault();
+  console.log('continueListElement', target);
+  console.dir(target);
   if (stripListElemHead(target.textContent).length > 0) {
+    var me = lineOf(host, target);
     clearToSame(host, target, evt)
-    var newKid = lineOf(host, target).nextSibling;
+    var newKid = me.nextSibling;
     var nextHeader = nextListElementHeader(target.textContent)
     newKid.textContent = nextHeader + newKid.textContent;
+
+    renderLine(host, newKid);
     setCursorPos(newKid, nextHeader.length);
   } else {
     clearToParagraph(host, target, evt)
   }
 }
 
-// when the backspace or delete key is pressed, 
-// checks if the cursor is at the end or beginning of a line
-// and if the following or preceeding div is a 'block div',
-// i.e. a 'sep'
-// If that is the case, it deletes the whole div
+/**
+when the backspace or delete key is pressed, checks if the cursor is at the
+end or beginning of a line and if the following or preceeding div is a 
+'block div', i.e. a 'sep'.
+
+If that is the case, it deletes the whole div.
+
+@param {DomNode} host - reference to the host dom node
+@param {DomNode} target - the list element the backspace/delete key was 
+                          pressed in
+@param {KeyEvent} evt - the key event triggering this delete evt
+*/
 function checkAndDeleteBlockDiv(host, target, evt) {
   var tline = lineOf(host, target);
   var cpos = getCursorPos(tline);
@@ -466,20 +613,51 @@ function checkAndDeleteBlockDiv(host, target, evt) {
   }
 }
 
-function isBlockDiv(div) {
-  return div.className.startsWith('sep');
-}
-
 //////////
 // UTIL //
 //////////
 
+/** Checks if a div is a 'block div' that should be treated as a signle
+element in thye case of backspace or delete
+
+@param {DomNode} div - the line div to check
+*/
+function isBlockDiv(div) {
+  return div.className.startsWith('sep');
+}
+
+
+/** Counts the number of '#' characters at the beginning of a string, 
+  capped at 6
+  
+  @param {string} str - the string to check
+*/
 function countHeaderHashes(str) {
   var i = 0;
   while (i < 6 && str.charAt(i) == '#') { i++; }
   return i;
 }
 
+/** Creates a new object byu expanding fields of a reference object using
+expandCharClass. Used for convenience when declaring the event map
+
+@param {Object} - the object to expand
+
+@example
+expandCharClass({
+  '[a,b,c,d]': 0
+  'e': 1
+});
+
+// expands to
+{
+  a: 0
+  b: 0
+  c: 0
+  d: 0
+  e: 1
+}
+*/
 function expandCharClassKeys(obj) {
   var newObj = {}
   for (var prop in obj) {
@@ -492,6 +670,22 @@ function expandCharClassKeys(obj) {
   return newObj;
 }
 
+/** Expands a character class string by repeating comma separated strings
+between square braces
+
+@param {string} str - string
+
+@example
+expandCharClass('this is [test,example] [string,text]');
+
+// expands to
+[
+  'this is a test string'
+  'this is a test text'
+  'this is a example string'
+  'this is a example text'
+]
+*/
 function expandCharClass(str) {
   var start = str.indexOf('[');
   var end = str.indexOf(']');
@@ -514,6 +708,9 @@ function expandCharClass(str) {
   return outputs
 }
 
+/** Get the containing tag of a text node;
+@param {DomNode} textNode - the node to get the containing tag for
+*/
 function tagOf(textNode) {
   if (textNode.nodeName == '#text') {
     textNode = textNode.parentElement;
@@ -521,64 +718,13 @@ function tagOf(textNode) {
   return textNode;
 }
 
-function predictText(textNode, charKey) {
-  var selection = window.getSelection();
-  if (textNode == selection.anchorNode) {
-    var offset = selection.anchorOffset;
-    // console.log('predictText inserting', offset, String.fromCharCode(charKey))
-    var content = textNode.textContent;
-    return (
-      content.substring(0,offset) + 
-      String.fromCharCode(charKey) + 
-      content.substring(offset)
-    );
-  }
-  return textNode.textContent
-}
+/** Move the text cursor to a specified offset within a text object.
+For setting the position within nested structures, see get/setCursorPos
 
-function predictTextRecursive(node, evt) {
-  // if the node is text, either modify it's text according to event
-  // or don't
-  if (node.nodeName == '#text') {
-    if (window.getSelection().anchorNode == node || 
-        (window.getSelection().anchorNode == node.parentElement && 
-          node.parentElement.childNodes.length == 1)) {
-      var content = node.textContent;
-      var offset = window.getSelection().anchorOffset;
-      return (
-        content.substring(0,offset) + 
-        strCharCode(evt.keyCode) + 
-        content.substring(offset)
-      );
-    }
-
-    else {
-      return node.textContent;
-    }
-  }
-
-  // handle case of empty div
-  else if (node.childNodes.length == 0) {
-    return strCharCode(evt.keyCode);
-  }
-
-  // otherwise, concatenate the children's text
-  else {
-    var x = [];
-    for (var i=0; i<node.childNodes.length; i++) {
-      x.push(predictTextRecursive(node.childNodes[i], evt));
-    }
-    return x.join('');
-  }
-}
-
-function locations(string, substring){
-  var a=[],i=-1;
-  while((i=string.indexOf(substring,i+1)) >= 0) a.push(i);
-  return a;
-}
-
-function moveSelection(elem, offset) {
+@param {DomNode} elem - the element that will contain the cursor
+@param {number} offset - the offset in the element to set the cursor
+*/
+function moveCursor(elem, offset) {
   var range = document.createRange();
   range.setStart(elem, offset);
   range.collapse(true);
@@ -588,6 +734,9 @@ function moveSelection(elem, offset) {
   sel.addRange(range);
 }
 
+/** Escape characters in a string in html
+  @param {string} str - the string to escape
+*/
 function escapeHTML(str) {
     var div = document.createElement('div');
     div.appendChild(document.createTextNode(str));
@@ -595,11 +744,16 @@ function escapeHTML(str) {
 }
 
 // TODO make more efficient or something
+/** recursively gets the text offset of the cursor in a div. If the cursor is
+not in the div, returns -1.
+
+@param {div} - The div in which to look for the cursor
+*/
 function getCursorPos(div) {
   var selection = window.getSelection();
 
   var length = 0;
-  var frontier = ([]).concat(Array.prototype.slice.call(div.childNodes));
+  var frontier = ([div]).concat(Array.prototype.slice.call(div.childNodes));
   while (frontier.length > 0) {    
     if (frontier[0] == selection.anchorNode) {
       return length + selection.anchorOffset;
@@ -611,24 +765,30 @@ function getCursorPos(div) {
     }
 
     else {
-      frontier = Array.prototype.slice.call(frontier[0].childNodes).concat(frontier.slice(1));
+      // Array.prototype.slice.call is to turn the childNodes into an array
+      // which we can call concat() on
+      frontier = Array.prototype.slice.call(
+        frontier[0].childNodes).concat(frontier.slice(1));
     }
   }
 
   return -1;
 }
 
+
 // TODO make more efficient or something
+/** Move the cursor to a text offset within a div, handling nested elements
+
+  @param {div} - The div to place the cursor in
+*/
 function setCursorPos(div, length) {
-  console.log('setCursorPos');
   var selection = window.getSelection();
 
   var frontier = ([]).concat(Array.prototype.slice.call(div.childNodes));
   while (frontier.length > 0) {
     if (frontier[0].nodeName == "#text" && 
         frontier[0].textContent.length >= length) {
-      console.log('length is ' + length);
-      moveSelection(frontier[0], length)
+      moveCursor(frontier[0], length)
       return 0;
     } 
     
@@ -645,50 +805,9 @@ function setCursorPos(div, length) {
   return 1;
 }
 
-function removeTextBeforeCursor() {
-  var selection = window.getSelection();
-  if (selection.anchorOffset != 0) {
-    var node = selection.anchorNode
-    node.textContent = (
-      node.textContent.substring(0, selection.anchorOffset - 1) +
-      node.textContent.substring(selection.anchorOffset));
-
-    setCursorPos(node, selection.anchorOffset);
-  } else {
-    // TODO get preceeding text node;
-  }
-}
-
-function strCharCode(code) {
-  switch (code) {
-    case keys.SPACE:
-      return '\xA0';
-    case keys.BACKSPACE:
-      return '\b';
-    case keys.DELETE:
-      return '\x7F';
-    default:
-      return String.fromCharCode(code);
-  }
-}
-
-function flattenDeletes(str){
-  for (var index = 0; index < str.length; index ++) {
-    switch(str[index]) {
-        case '\b':
-          str = str.substring(0,index-1) + str.substring(index+1)
-          break;
-
-        case '\x7F':
-          str = str.substring(0,index) + str.substring(index+2)
-          index --;
-          break;
-        default:
-    }
-  }
-  return str;
-}
-
+/** Expands a string into a list of the corresponding keycodes
+@param {string} str - the string to expand
+*/
 function makeKeySet(str) {
   set = []
   for (var i=0; i<str.length; i++) {
@@ -697,6 +816,10 @@ function makeKeySet(str) {
   return set;
 }
 
+/** Get the line div (direct child of host) containing the elem DomNode
+@param {DomNode} host - reference to the host DomNode
+@param {DomNode} elem - element to find the line of 
+*/
 function lineOf(host, elem) {
   while(elem.parentElement != host && elem != host) {
     elem = elem.parentElement;
@@ -704,11 +827,30 @@ function lineOf(host, elem) {
   return elem
 }
 
+// TODO actually implement things
+/** Strips the list header from a string
+@param {string} str - the string to strip the list header form
+  
+@example
+stripListElemHead('- unordered list')
+// returns 'unordered list'
+
+stripListElemHead('1. ordered list')
+// returns 'ordered list'
+
+*/
 function stripListElemHead(str) {
-  // TODO actually implement things
   return str.substring(2);
 }
 
+/** Gets the successor list element header to a string
+@param {string} str - the string to get the successor of
+
+@example
+nextListElementHeader('1. ordered list')
+// returns '2. '
+
+*/
 function nextListElementHeader(str) {
   var numLeadingSpaces = 0;
   while(/\s/.test(str.substring(numLeadingSpaces, numLeadingSpaces + 1))) {
@@ -739,45 +881,77 @@ function nextListElementHeader(str) {
   }
 }
 
+/** Gets the successor to the header string of an ordered list element
+@param {string} str - the line in the ordered list
+@example
+headerCharSuccessor('123. ')
+// returns '124. '
+
+headerCharSuccessor('abc. ')
+// returns 'abc. '
+
+headerCharSuccessor('ABC. ')
+// returns 'ABC. '
+
+*/
 function headerCharSuccessor(str) {
-  function incrementHeader(alphabet, str) {
-    var index = str.length - 1;
-    var carry = 1
-    while(index > -1) {
-      var charInd = alphabet.indexOf(str.charAt(index));
-      if (charInd == alphabet.length - 1) {
-        str = (
-          str.substring(0, index) + 
-          alphabet.charAt(0) + 
-          str.substring(index + 1)
-        );
-        index--;
-      }
-
-      else {
-        return (
-          str.substring(0, index) + 
-          alphabet.charAt(charInd + 1) + 
-          str.substring(index + 1));
-      }
-    }
-
-    return alphabet.charAt(0) + str;
-  }
-
   if (/[0123456789]+/.test(str)) {
     return "" + (parseInt(str) + 1);
   }
 
   if (/[abcdefghijklmnopqrstuvwxyz]+/.test(str)) {
-    return incrementHeader('abcdefghijklmnopqrstuvwxyz', str);
+    return incrementString('abcdefghijklmnopqrstuvwxyz', str);
   }
   if (/[ABCDEFGHIJKLMNOPQRSTUVWXYZ]+/.test(str)) {
-    return incrementHeader('ABCDEFGHIJKLMNOPQRSTUVWXYZ', str);
+    return incrementString('ABCDEFGHIJKLMNOPQRSTUVWXYZ', str);
  
   }
 }
 
+/** increments a string within an alphabet
+@param {string} alphabet - the alhabet to use as reference
+@param {string} str - the string to increment
+
+@example
+incrementString('abcd', 'ab')
+// returns 'ac'
+
+incrementString('abcd', 'd')
+// returns 'aa'
+
+incrementString('abcd', 'cd')
+// returns 'da'
+*/
+function incrementString(alphabet, str) {
+  var index = str.length - 1;
+  var carry = 1
+  while(index > -1) {
+    var charInd = alphabet.indexOf(str.charAt(index));
+    if (charInd == alphabet.length - 1) {
+      str = (
+        str.substring(0, index) + 
+        alphabet.charAt(0) + 
+        str.substring(index + 1)
+      );
+      index--;
+    }
+
+    else {
+      return (
+        str.substring(0, index) + 
+        alphabet.charAt(charInd + 1) + 
+        str.substring(index + 1));
+    }
+  }
+
+  return alphabet.charAt(0) + str;
+}
+
+/** Gets the depth of a list element based on the number of leading spaces in
+the preceeding sibling nodes
+
+@param {DomNode} elem - the dom node
+*/
 function calculateListElemDepth(elem) {
   var leadingSpaces = getLeadingSpaces(elem.textContent);
   
@@ -797,6 +971,9 @@ function calculateListElemDepth(elem) {
   return depth;
 }
 
+/** Returns the number of leading whitespace characters in a string
+@param {string} str - string to check against
+*/
 function getLeadingSpaces(str) {
   var ind = 0;
   while (/\s/.test(str.substring(ind, ind+1))) {
@@ -808,6 +985,10 @@ function getLeadingSpaces(str) {
   return ind;
 }
 
+/** Sets the leading spaces of a string to a fixed level
+@param {string} str - string to fix the number of leading spaces of
+@param {number} depth - depth level to fix to
+*/
 function fixListElementSpaces(str, depth) {
   // console.log('fixing spaces to', depth)
   // console.log('"' + ' '.repeat(depth) + '"');
