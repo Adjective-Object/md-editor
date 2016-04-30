@@ -1,38 +1,37 @@
 .mdedit {
-}
 
-.mdedit, 
-.mdedit > div {
+&, 
+& > div {
 	min-height: 16px;
 	font-size: 16px;
 }
 
-.mdedit .h1 { opacity: 0.6; font-size: 32px; font-weight: bold; }
-.mdedit .h2 { opacity: 0.6; font-size: 24px; }
-.mdedit .h3 { opacity: 0.6; font-size: 18px; font-style: italic; }
-.mdedit .h4 { opacity: 0.6; font-size: 16px; font-style: italic; }
-.mdedit .h5 { opacity: 0.6; font-size: 14px; font-style: italic; }
-.mdedit .h6 { opacity: 0.6; font-size: 12px; font-style: italic; }
+.h1 { opacity: 0.6; font-size: 32px; font-weight: bold; }
+.h2 { opacity: 0.6; font-size: 24px; }
+.h3 { opacity: 0.6; font-size: 18px; font-style: italic; }
+.h4 { opacity: 0.6; font-size: 16px; font-style: italic; }
+.h5 { opacity: 0.6; font-size: 14px; font-style: italic; }
+.h6 { opacity: 0.6; font-size: 12px; font-style: italic; }
 
-.mdedit .code,
-.mdedit .italic,
-.mdedit .bold,
-.mdedit .underline
+.code,
+.italic,
+.bold,
+.underline
 {
 	display: inline;
 }
 
-.mdedit .code 		{ font-family: 		monospace; }
-.mdedit .italic 	{ font-style: 		italic; }
-.mdedit .bold 		{ font-weight: 		bold; }
-.mdedit .underline 	{ text-decoration: 	underline; }
+.code 		{ font-family: 		monospace; }
+.italic 	{ font-style: 		italic; }
+.bold 		{ font-weight: 		bold; }
+.underline 	{ text-decoration: 	underline; }
 
-.mdedit .sep {
+.sep {
 	position: relative;
 	line-height: 16px;
 	color: #666666;
 }
-.mdedit .sep:after {
+.sep:after {
 	content: '';
 	position: absolute;
 	top: 50%;
@@ -44,12 +43,26 @@
 }
 
 @for $i from 1 through 6 {
-	.mdedit .ol.depth-#{$i},
-	.mdedit .ul.depth-#{$i} {
+	.ol.depth-#{$i},
+	.ul.depth-#{$i} {
 		padding-left: (0.5 + ($i - 1)) * 1em;
 	}	
 }
 
-.mdedit p {
-	margin-top: 12px;
+.linkdelim {
+	display: inline-block;
+	font-weight: bold;
+}
+
+.linkhref {
+	display: inline-block;
+	color: #6666AA;
+	text-decoration: underline;
+}
+
+.linktext {
+	display:inline-block;
+	color: rgba(0,0,0,0.8);
+}
+
 }

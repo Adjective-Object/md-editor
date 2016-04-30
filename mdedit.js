@@ -2,6 +2,9 @@
 @param {DomNode} host - The 'host' div. that mdedit will listen for events on
 */
 function mdedit(host) {
+  state = {
+    references : {}
+  }
   host.addEventListener('keydown' , dispatchEvt(host));
   host.addEventListener('keypress', dispatchEvt(host));
   host.addEventListener('input'   , renderChanges(host));
@@ -64,6 +67,10 @@ function renderLine(host, lineDiv, opt) {
   extractSpan(host, lineDiv, '**' , 'bold');
   extractSpan(host, lineDiv, '*'  , 'italic');
   extractSpan(host, lineDiv, '_'  , 'underline');
+
+  // images
+  extractLinks(host, lineDiv, ['[', ']', '(', ')']);
+  //extractLinks(host, lineDiv, '![', ']', '(',')');
 
   // insert cursor at saved position relative to line
   var cursorPosAdjustment = 0;
@@ -215,6 +222,60 @@ function extractSpan(parent, elem, delim, className, isChild) {
   }
 }
 
+function extractLinks(host, elem, delims, callback) {
+  if (elem.nodeName == '#text') {
+
+    var startIndex = 0
+    var elemText = elem.textContent;
+    var parent = elem.parentElement;
+    while (startIndex < elemText.length) {
+      // get the index of all the delimiters. Return if any are not found
+      var inds = []
+      for(var i in delims) {
+        var searchIndes = (i == 0) ? startIndex : delims[i-1];
+        inds.push(elemText.indexOf(delims[i]))
+
+        if (inds[i] == -1) {
+          // append remaining text as a new element
+          if (startIndex != 0) {
+            parent.insertBefore(document.createTextNode(
+              elemText.substring(startIndex)), elem);
+            parent.removeChild(elem);
+          }
+          return;
+        }
+      }
+
+      // append tect between first index and start index as a text node
+      parent.insertBefore(
+        document.createTextNode(
+          elemText.substring(startIndex, inds[0])),
+        elem);
+
+      insertTag(parent, elem, 'linkdelim', delims[0]);
+
+      textCallback(parent, elem, 
+        elemText.substring(inds[0] + delims[0].length, inds[1]))
+
+      insertTag(parent, elem, 'linkdelim', delims[1]);
+      insertTag(parent, elem, 'linkdelim', delims[2]);
+
+      linkCallback(parent, elem, 
+        elemText.substring(inds[0] + delims[0].length, inds[1]))
+
+      insertTag(parent, elem, 'linkdelim', delims[3]);
+
+      startIndex = inds[3] + 1;
+    }
+    parent.removeChild(elem);
+  } 
+  else {
+    // traverse children
+    for(var c in elem.childNodes) {
+      extractLinks(host, elem.childNodes[c], delims);
+    }
+  }
+}
 
 ////////////////////////
 // Event Dispatching  //
@@ -993,4 +1054,11 @@ function fixListElementSpaces(str, depth) {
   // console.log('fixing spaces to', depth)
   // console.log('"' + ' '.repeat(depth) + '"');
   return str.replace(/^\s*/, ' '.repeat(depth));
+}
+
+function insertTag(parent, elem, className, text) {
+  var div = document.createElement('div')
+  div.className = className;
+  div.textContent = text;
+  parent.insertBefore(div, elem);
 }
