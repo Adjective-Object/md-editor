@@ -3,13 +3,19 @@
 */
 function mdedit(host) {
   state = {
+    // Maintian a reference to the host div in state
     host: host,
-    referenceTable : {}
   };
 
+  var render = renderChanges(state);
   host.addEventListener('keydown' , dispatchEvt(state));
   host.addEventListener('keypress', dispatchEvt(state));
-  host.addEventListener('input'   , renderChanges(state));
+  host.addEventListener('input'   , render);
+  
+  for (var i=0; i<host.children.length; i++) {
+    markForChange(state, host.children[i], undefined)
+  }
+  render();
 }
 
 
@@ -51,6 +57,8 @@ function renderLine(state, lineDiv, opt) {
     opt = {};
   }
 
+  var embeddedElements = [];
+
   // because 'ul' and 'ol' divs are special in that
   // the state of the next div depends on this div,
   // we note that the chid should be re-evaluated at end
@@ -84,12 +92,16 @@ function renderLine(state, lineDiv, opt) {
     parent.insertBefore(div, elem);
     return div;
   }
-  function imgSrcHandler(parent, elem, text){
+  function imgSrcHandler(parent, elem, imgSrc){
     // link href
-    var tag = linkHrefHandler(parent, elem, text);
+    var tag = linkHrefHandler(parent, elem, imgSrc);
 
     // add the image to the data object for this line
-    return tag
+    var embed = document.createElement('img');
+    embed.className='embedImage';
+    embed.src = imgSrc;
+    embeddedElements.push(embed);
+    return tag;
   }
 
   // images
@@ -154,6 +166,15 @@ function renderLine(state, lineDiv, opt) {
 
   if (cursorPos != -1) {
     setCursorPos(lineDiv, cursorPos + cursorPosAdjustment);
+  }
+
+  if (embeddedElements.length != 0) {
+    var embDiv = document.createElement('div');
+    embDiv.classList.add('embed');
+    lineDiv.appendChild(embDiv);
+    for (var i=0; i<embeddedElements.length; i++) {
+      embDiv.appendChild(embeddedElements[i]);
+    }
   }
 
   if (evalSuccessor && lineDiv.nextSibling) {
@@ -261,11 +282,13 @@ function extractLinks(host, elem, delims, textCallback, linkCallback) {
     var elemText = elem.textContent;
     var parent = elem.parentElement;
     while (startIndex < elemText.length) {
+      console.log (startIndex, elemText.length, elemText, delims);
       // get the index of all the delimiters. Return if any are not found
       var inds = []
       for(var i in delims) {
-        var searchIndes = (i == 0) ? startIndex : delims[i-1];
-        inds.push(elemText.indexOf(delims[i]))
+        var searchIndex = (i == 0) ? startIndex : inds[i-1];
+        inds.push(elemText.indexOf(delims[i], searchIndex))
+        console.log(inds);
 
         if (inds[i] == -1) {
           // append remaining text as a new element
@@ -542,7 +565,7 @@ function markForChange(state, target, evt) {
   target.setAttribute('changed', true);
 
   // on backspace, mark predecessor for re-evaluation
-  if(evt.keyCode == keys.BACKSPACE) {
+  if(evt && evt.keyCode == keys.BACKSPACE) {
     var prev = lineOf(host, target).previousSibling;
     if (prev) {prev.setAttribute('changed', true);}
   }

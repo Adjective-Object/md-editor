@@ -65,4 +65,18 @@
 	color: rgba(0,0,0,0.8);
 }
 
+
+$embed-height: 128px; 
+.embed {
+	display: flex;
+	justify-content: flex-start;
+	height: $embed-height;
+	padding: 8px;
+}
+
+.embed img {
+	height: $embed-height - 16px;
+	margin: 4px;
+}
+
 }
