@@ -35,7 +35,7 @@ olRegex = /^\s*[0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ]+
 /** @const sepRegex - a regex identifying line separator elements*/
 sepRegex = /^---.*/;
 
-listElemClassRegex = /^(ul|ol).*/;
+codeBlockRegex = /^\s{4}/;
 
 /** Takes a div in the mdedit host div and applies the appropriate
 class tags based on the text content.
@@ -54,8 +54,6 @@ class tags based on the text content.
 */
 function renderLine(state, lineDiv, opt) {
   var host = state.host;
-  console.log('rendering line', lineDiv);
-  console.log('host div', host);
   if (opt == undefined) {
     opt = {};
   }
@@ -65,29 +63,11 @@ function renderLine(state, lineDiv, opt) {
   // because 'ul' and 'ol' divs are special in that
   // the state of the next div depends on this div,
   // we note that the chid should be re-evaluated at end
-  var evalSuccessor = (
-    listElemClassRegex.test(lineDiv.className) && 
-    lineDiv.nextSibling && 
-    listElemClassRegex.test(lineDiv.nextSibling.className)
-  );
+  var evalSuccessor = false;
 
   var lineText = lineDiv.textContent;  
   var cursorPos = opt.originalCursor || getCursorPos(lineDiv);
 
-  console.log('handlers:', linkTextHandler, linkHrefHandler);
-
-  function linkTextHandler(parent, elem, text) {
-    return insertTag(parent, elem, 'linktext', text);
-  };
-  function linkHrefHandler(parent, elem, href){
-    var div = document.createElement('a')
-    div.className = 'linkhref';
-    div.setAttribute('literal', 'true');
-    div.textContent = href;
-    div.href = href;
-    parent.insertBefore(div, elem);
-    return div;
-  }
   function imgSrcHandler(parent, elem, imgSrc){
     // link href
     var tag = linkHrefHandler(parent, elem, imgSrc);
@@ -105,30 +85,21 @@ function renderLine(state, lineDiv, opt) {
   // reset div to pure text
   lineDiv.textContent = lineText;
 
-  // images
-  extractLinks(
-    host, lineDiv, ['![', ']', '(', ')'],
-    linkTextHandler, imgSrcHandler
-    );
-
-  extractLinks(
-    host, lineDiv, ['[', ']', '(', ')'],
-    linkTextHandler, linkHrefHandler
-    );
-
-
-  // render the content of the line
-  console.log('    extracting spans from', lineDiv);
-  extractSpan(host, lineDiv, '`'  , 'code');
-  extractSpan(host, lineDiv, '**' , 'bold');
-  extractSpan(host, lineDiv, '*'  , 'italic');
-  extractSpan(host, lineDiv, '_'  , 'underline');
-
   // insert cursor at saved position relative to line
   var cursorPosAdjustment = 0;
 
-  // determine class of this line
+
+  //////////////////////////////////////////////
+  // STEP 1 : CLASS-BASED TEXT TRANSFORMATION //
+  //////////////////////////////////////////////
+
+  // determine class of this line and perform changes which can change the text
+  // content of a line based on the classs
   var lineClass = classifyLine(lineText);
+  evalSuccessor == (
+    ( lineDiv.className == 'ul' || 
+      lineDiv.className == 'ol') &&
+    lineClass != lineDiv.className);
   switch(lineClass) {
     case 'h':
       lineDiv.className = 'h' + countHeaderHashes(lineText)
@@ -140,12 +111,10 @@ function renderLine(state, lineDiv, opt) {
 
       var depth = calculateListElemDepth(lineDiv);
       var oldTextContent = opt.originalText || lineDiv.textContent
-      console.log('old text content', oldTextContent);
       //fix first node (which is hopefully a text node?
       var lineTextNode = getLeadingTextNode(lineDiv);
       lineTextNode.textContent = fixListElementSpaces(lineTextNode.textContent, depth);
       cursorPosAdjustment += (lineDiv.textContent.length - oldTextContent.length);
-      console.log(cursorPos, cursorPosAdjustment);
 
       lineDiv.setAttribute('depth', depth);
 
@@ -162,7 +131,7 @@ function renderLine(state, lineDiv, opt) {
         var successorDiv = document.createElement('div');
         successorDiv.textContent = sepText.substring(3);
         host.insertBefore(successorDiv, lineDiv.nextSibling)
-        if (cursorPos >=0 ) {
+        if (cursorPos >= 0 ) {
           cursorPos = -1;
           setCursorPos(successorDiv, sepText.length - 3);
         }
@@ -174,6 +143,30 @@ function renderLine(state, lineDiv, opt) {
     default:
       lineDiv.className = lineClass;
   }
+
+
+  ///////////////////////////////////////////
+  // STEP 2 : NON-TEXT-ALTERING OPERATIONS //
+  ///////////////////////////////////////////
+
+  // first we do the ones that can create literal text
+  extractLinks(
+    host, lineDiv, ['![', ']', '(', ')'],
+    linkTextHandler, imgSrcHandler
+    );
+
+  extractLinks(
+    host, lineDiv, ['[', ']', '(', ')'],
+    linkTextHandler, linkHrefHandler
+    );
+
+  extractSpan(host, lineDiv, '`'  , setAttrs({'class': 'code', 'literal': true}));
+
+  // extract spans from nonliteral classes
+  extractSpan(host, lineDiv, '**' , setClass('bold'));
+  extractSpan(host, lineDiv, '*'  , setClass('italic'));
+  extractSpan(host, lineDiv, '_'  , setClass('underline'));
+
 
   if (cursorPos != -1) {
     setCursorPos(lineDiv, cursorPos + cursorPosAdjustment);
@@ -194,6 +187,19 @@ function renderLine(state, lineDiv, opt) {
   }
 }
 
+function linkTextHandler(parent, elem, text) {
+  return insertTag(parent, elem, 'linktext', text);
+};
+function linkHrefHandler(parent, elem, href){
+  var div = document.createElement('a')
+  div.className = 'linkhref';
+  div.setAttribute('literal', 'true');
+  div.textContent = href;
+  div.href = href;
+  parent.insertBefore(div, elem);
+  return div;
+}
+
 /** Helper function to classify a line based on it's text content 
 @param {string} lineText - text content of div
 */
@@ -202,6 +208,7 @@ function classifyLine(lineText) {
   else if (sepRegex.test(lineText)) { return 'sep'; }
   else if (ulRegex.test(lineText)) { return 'ul'; }
   else if (olRegex.test(lineText)) { return 'ol'; }
+  else if (codeBlockRegex.test(lineText)) { return 'codeBlock'; }
   else { return 'p'; }
 }
 
@@ -220,7 +227,7 @@ extractSpan(host, p, '`', 'code');
 // <div class='p'>example <div class='code'>`to extract`</div></div>
 */
 
-function extractSpan(parent, elem, delim, className, isChild) {
+function extractSpan(parent, elem, delim, callback, isChild) {
   isChild = isChild || false;
 
   //console.log('extractSpan', parent, elem, delim, className, isChild);
@@ -236,7 +243,7 @@ function extractSpan(parent, elem, delim, className, isChild) {
       // inside of tag
       if (i % 2 == 1 && i != subStrings.length - 1) {
         var newTag = document.createElement('div');
-        newTag.className = className;
+        callback(newTag);
         newTag.appendChild(document.createTextNode(
           delim + subStrings[i] + delim ));
 
@@ -273,7 +280,7 @@ function extractSpan(parent, elem, delim, className, isChild) {
       // convert live list to non-live list and traverse
       var nonLiveChildren = makeListNonLive(elem.childNodes);
       for (var i=0; i<nonLiveChildren.length; i++) {
-        extractSpan(elem, nonLiveChildren[i], delim, className, true);
+        extractSpan(elem, nonLiveChildren[i], delim, callback, true);
       }
     }
 
@@ -420,6 +427,7 @@ var docParts = expandCharClassKeys({
     // grab things that have changed
     keydown: matchRuleset({
       actions: [
+      [keyCode(keys.TAB)                       , insertSpaces(4), true],
       [keyCodes([keys.BACKSPACE, keys.DELETE]) , checkAndDeleteBlockDiv],
       [always                                  , markForChange]]
     }),
@@ -489,6 +497,9 @@ function matchRuleset(opt) {
         // console.log('triggered', i);
         mappings[i][1](host, target, evt);
         shouldIgnore = ignoreDefault;
+        if (mappings[i][2]) {
+          break;
+        }
       }
     }
     return shouldIgnore;
@@ -523,9 +534,9 @@ Expects a keyboard event (i.e. keypress, keydown, keyup)
 function keyCode(code, opt){
   opt = opt || {};
   return function(str, evt){ 
-    if (opt.ctrl  == evt.ctrlKey) { return false; }
-    if (opt.shift == evt.shiftKey) { return false; }
-    if (opt.alt   == evt.altKey) { return false; }
+    if (opt.ctrl  !== undefined && opt.ctrl  != evt.ctrlKey)  { return false; }
+    if (opt.shift !== undefined && opt.shift != evt.shiftKey) { return false; }
+    if (opt.alt   !== undefined && opt.alt   != evt.altKey)   { return false; }
 
     return evt.keyCode == code;
   };
@@ -656,10 +667,12 @@ function clearToSame(state, target, evt) {
 @param {KeyEvent} evt - the keycode event triggering this indent
 */
 function elevateListElement(state, target, evt) {
-  console.log('elevate')
   evt.preventDefault();
   var target = tagOf(target);
-  var currentDepth = 1 | target.getAttribute('depth')
+  var currentDepth = parseInt(target.getAttribute('depth'))
+  if (currentDepth == undefined) {
+    currentDepth = 1;
+  }
   var newDepth = Math.min(6, currentDepth + (evt.shiftKey ? -1 : 1));
 
   // get state variables before editing the text
@@ -696,7 +709,7 @@ function continueListElement(state, target, evt) {
   evt.preventDefault();
   console.log('continueListElement', target);
   console.dir(target);
-  if (stripListElemHead(target.textContent).length > 0) {
+  if (stripListElemHead(fixListElementSpaces(target.textContent,0)).length > 0) {
     var me = lineOf(state.host, target);
     clearToSame(state, target, evt)
     var newKid = me.nextSibling;
@@ -706,7 +719,9 @@ function continueListElement(state, target, evt) {
     renderLine(state, newKid);
     setCursorPos(newKid, nextHeader.length);
   } else {
-    clearToParagraph(state, target, evt)
+    var me = lineOf(state.host, target);
+    me.textContent = '';
+    renderLine(state, me);
   }
 }
 
@@ -739,6 +754,15 @@ function checkAndDeleteBlockDiv(state, target, evt) {
     state.host.removeChild(tline.nextSibling);
   }
 }
+
+function insertSpaces(numspaces) {
+  return function(state, target, evt) {
+    insertTextAtCursor(state.host, '\xA0'.repeat(numspaces));
+    evt.preventDefault();
+    return true;
+  }
+}
+
 
 //////////
 // UTIL //
@@ -870,7 +894,7 @@ function escapeHTML(str) {
     return div.innerHTML;
 }
 
-// TODO make more efficient or something
+// TODO make more efficient (make frontier implicit )
 /** recursively gets the text offset of the cursor in a div. If the cursor is
 not in the div, returns -1.
 
@@ -957,7 +981,7 @@ function lineOf(host, elem) {
 // TODO actually implement things
 /** Strips the list header from a string
 @param {string} str - the string to strip the list header form
-  
+
 @example
 stripListElemHead('- unordered list')
 // returns 'unordered list'
@@ -967,6 +991,7 @@ stripListElemHead('1. ordered list')
 
 */
 function stripListElemHead(str) {
+  console.log('stripListElemHead', '"' + str + '"');
   return str.substring(2);
 }
 
@@ -1140,4 +1165,43 @@ function makeListNonLive(liveList) {
     nonLive.push(liveList[i]);
   }
   return nonLive
+}
+
+function insertTextAtCursor(host, txt) {
+  console.log('insert', txt);
+  var selection = window.getSelection();
+
+  console.dir(selection.anchorNode);
+
+  var selAnchor = selection.anchorNode;
+  var seloffset = selection.anchorOffset;
+  var oldText = selAnchor.textContent;
+
+  var anchor = lineOf(host, selAnchor);
+  var offset = getCursorPos(anchor);
+
+  anchor.textContent = (
+    oldText.substring(0, offset) +
+    txt + 
+    oldText.substring(offset)
+  );
+
+  setCursorPos(anchor, offset + txt.length);
+
+  console.log('I tried to set offset', anchor, offset + txt.length);
+  console.dir(window.getSelection());
+}
+
+function setClass(c) { 
+  return function(div) {
+    div.className = c;
+  }
+}
+
+function setAttrs(attrs) {
+  return function(div) {
+    for (var i in attrs) {
+      div.setAttribute(i, attrs[i]);
+    }
+  }
 }
