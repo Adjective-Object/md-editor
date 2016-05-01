@@ -81,7 +81,7 @@ function renderLine(state, lineDiv, opt) {
   };
   function linkHrefHandler(parent, elem, href){
     var div = document.createElement('a')
-    div.className = 'linkhref';
+    div.className = 'linkhref literal';
     div.textContent = href;
     div.href = href;
     parent.insertBefore(div, elem);
@@ -101,9 +101,12 @@ function renderLine(state, lineDiv, opt) {
     return tag;
   }
 
+  // reset div to pure text
+  lineDiv.textContent = lineText;
+
   // images
   extractLinks(
-    host, lineDiv, ['[', ']', '(', ')'],
+    host, lineDiv, ['![', ']', '(', ')'],
     linkTextHandler, imgSrcHandler
     );
 
@@ -115,10 +118,10 @@ function renderLine(state, lineDiv, opt) {
 
   // render the content of the line
   console.log('    extracting spans from', lineDiv);
-  lineDiv.textContent = lineText;
   extractSpan(host, lineDiv, '`'  , 'code');
   extractSpan(host, lineDiv, '**' , 'bold');
   extractSpan(host, lineDiv, '*'  , 'italic');
+  extractSpan(host, lineDiv, '_'  , 'underline');
 
   // insert cursor at saved position relative to line
   var cursorPosAdjustment = 0;
@@ -263,14 +266,14 @@ function extractSpan(parent, elem, delim, className, isChild) {
   }
 
   else {
-    var nonLiveChildren = []
-    for (var i=0; i<elem.childNodes.length; i++) {
-      nonLiveChildren.push(elem.childNodes[i]);
-    }
 
-    for (var i=0; i<nonLiveChildren.length; i++) {
-      // console.log ('non-live-child', i)
-      extractSpan(elem, nonLiveChildren[i], delim, className, true);
+    // do not traverse literal elements
+    if (! elem.classList.contains('literal')) {
+      // convert live list to non-live list and traverse
+      var nonLiveChildren = makeListNonLive(elem.childNodes);
+      for (var i=0; i<nonLiveChildren.length; i++) {
+        extractSpan(elem, nonLiveChildren[i], delim, className, true);
+      }
     }
 
     if (isChild) {
@@ -280,9 +283,7 @@ function extractSpan(parent, elem, delim, className, isChild) {
 }
 
 function extractLinks(host, elem, delims, textCallback, linkCallback) {
-  console.log('extractLinks');
-  console.dir(textCallback);
-  console.dir(linkCallback);
+
   if (elem.nodeName == '#text') {
 
     var startIndex = 0
@@ -332,9 +333,19 @@ function extractLinks(host, elem, delims, textCallback, linkCallback) {
     }
     parent.removeChild(elem);
   } 
+
+  // non-#text element
   else {
+    console.dir(elem);
+
+    // do not traverse literal elements
+    if (elem.classList.contains('literal')) {
+      return;
+    }
+
     // traverse children
-    for(var c in elem.childNodes) {
+    for(var c=0; c< elem.childNodes.length; c++) {
+      console.log(elem.childNodes, c, elem.childNodes[c]);
       extractLinks(
         host, elem.childNodes[c], delims,
         textCallback, linkCallback);
@@ -1132,4 +1143,12 @@ function insertTag(parent, elem, className, text) {
 
 function getLeadingTextNode(elem) {
   return elem.childNodes[0];
+}
+
+function makeListNonLive(liveList) {
+  var nonLive = []
+  for (var i=0; i<liveList.length; i++) {
+    nonLive.push(liveList[i]);
+  }
+  return nonLive
 }
