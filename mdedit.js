@@ -3,11 +3,13 @@
 */
 function mdedit(host) {
   state = {
-    references : {}
-  }
-  host.addEventListener('keydown' , dispatchEvt(host));
-  host.addEventListener('keypress', dispatchEvt(host));
-  host.addEventListener('input'   , renderChanges(host));
+    host: host,
+    referenceTable : {}
+  };
+
+  host.addEventListener('keydown' , dispatchEvt(state));
+  host.addEventListener('keypress', dispatchEvt(state));
+  host.addEventListener('input'   , renderChanges(state));
 }
 
 
@@ -29,7 +31,7 @@ listElemClassRegex = /^(ul|ol).*/;
 /** Takes a div in the mdedit host div and applies the appropriate
 class tags based on the text content.
 
-@param {DomNode} host - the host div
+@param {DomNode} state - reference to the state of this mdedit instance
 @param {DomNode} lineDiv - the line to re-evaluate
 @param {DomNode} opt - optional options dictionary
 
@@ -41,7 +43,8 @@ class tags based on the text content.
 @param {string} opt.originalText - original text of div
 
 */
-function renderLine(host, lineDiv, opt) {
+function renderLine(state, lineDiv, opt) {
+  var host = state.host;
   console.log('rendering line', lineDiv);
   console.log('host div', host);
   if (opt == undefined) {
@@ -68,9 +71,37 @@ function renderLine(host, lineDiv, opt) {
   extractSpan(host, lineDiv, '*'  , 'italic');
   extractSpan(host, lineDiv, '_'  , 'underline');
 
+  console.log('handlers:', linkTextHandler, linkHrefHandler);
+
+  function linkTextHandler(parent, elem, text) {
+    return insertTag(parent, elem, 'linktext', text);
+  };
+  function linkHrefHandler(parent, elem, href){
+    var div = document.createElement('a')
+    div.className = 'linkhref';
+    div.textContent = href;
+    div.href = href;
+    parent.insertBefore(div, elem);
+    return div;
+  }
+  function imgSrcHandler(parent, elem, text){
+    // link href
+    var tag = linkHrefHandler(parent, elem, text);
+
+    // add the image to the data object for this line
+    return tag
+  }
+
   // images
-  extractLinks(host, lineDiv, ['[', ']', '(', ')']);
-  //extractLinks(host, lineDiv, '![', ']', '(',')');
+  extractLinks(
+    host, lineDiv, ['[', ']', '(', ')'],
+    linkTextHandler, imgSrcHandler
+    );
+
+  extractLinks(
+    host, lineDiv, ['[', ']', '(', ')'],
+    linkTextHandler, linkHrefHandler
+    );
 
   // insert cursor at saved position relative to line
   var cursorPosAdjustment = 0;
@@ -127,10 +158,8 @@ function renderLine(host, lineDiv, opt) {
 
   if (evalSuccessor && lineDiv.nextSibling) {
     console.log('evaluating next child', lineDiv.nextSibling);
-    renderLine(host, lineDiv.nextSibling);
+    renderLine(state, lineDiv.nextSibling);
   }
-
-
 }
 
 /** Helper function to classify a line based on it's text content 
@@ -222,7 +251,10 @@ function extractSpan(parent, elem, delim, className, isChild) {
   }
 }
 
-function extractLinks(host, elem, delims, callback) {
+function extractLinks(host, elem, delims, textCallback, linkCallback) {
+  console.log('extractLinks');
+  console.dir(textCallback);
+  console.dir(linkCallback);
   if (elem.nodeName == '#text') {
 
     var startIndex = 0
@@ -254,6 +286,7 @@ function extractLinks(host, elem, delims, callback) {
 
       insertTag(parent, elem, 'linkdelim', delims[0]);
 
+      console.log(host, elem, delims, textCallback, linkCallback);
       textCallback(parent, elem, 
         elemText.substring(inds[0] + delims[0].length, inds[1]))
 
@@ -261,7 +294,7 @@ function extractLinks(host, elem, delims, callback) {
       insertTag(parent, elem, 'linkdelim', delims[2]);
 
       linkCallback(parent, elem, 
-        elemText.substring(inds[0] + delims[0].length, inds[1]))
+        elemText.substring(inds[2] + delims[2].length, inds[3]))
 
       insertTag(parent, elem, 'linkdelim', delims[3]);
 
@@ -272,7 +305,9 @@ function extractLinks(host, elem, delims, callback) {
   else {
     // traverse children
     for(var c in elem.childNodes) {
-      extractLinks(host, elem.childNodes[c], delims);
+      extractLinks(
+        host, elem.childNodes[c], delims,
+        textCallback, linkCallback);
     }
   }
 }
@@ -286,9 +321,9 @@ function extractLinks(host, elem, delims, callback) {
 retruns a dispatcher for events to divs according to the docParts 
 event dispatching / callback declaration
 
-@param {DomNode} host - the host div to listen to events on
+@param {DomNode}  - the host div to listen to events on
 */
-function dispatchEvt(host) {
+function dispatchEvt(state) {
   return function dispatch(evt) {
     var selection = window.getSelection();
     var target = selection.anchorNode;
@@ -300,13 +335,13 @@ function dispatchEvt(host) {
     var ignoreDefault = false;
     if (docParts[classKey] != undefined &&
         docParts[classKey][evt.type] != undefined ) {
-      ignoreDefault = docParts[classKey][evt.type](host, target, evt);
+      ignoreDefault = docParts[classKey][evt.type](state, target, evt);
     }
 
     if (!ignoreDefault && 
         docParts['*'] != undefined &&
         docParts['*'][evt.type] != undefined ) {
-      docParts['*'][evt.type](host, target, evt);
+      docParts['*'][evt.type](state, target, evt);
     }
 
     // otherwise, just re-render the line the edit happend on
@@ -493,12 +528,12 @@ function keyCodes(codes, opt){
 ////////////////////////
 
 /** Marks a line div as changed (to be re-rendered on the next render pass)
-@param {DomNode} host - A reference to the host dom node
+@param {DomNode} state - reference to the state of this mdedit instance
 @param {DomNode} target - The div the event is being applied to
 @param {KeyEvent} evt - event that caused the change
 */
-function markForChange(host, target, evt) {
-  console.log(host, target);
+function markForChange(state, target, evt) {
+  var host = state.host;
   while (target.parentElement != host && target != host) {
     target = target.parentElement;
   }
@@ -515,13 +550,14 @@ function markForChange(host, target, evt) {
 
 /** Passes over all line divs (all direct children of the host div)
 And re-renders all that have been marked for change
-@param {DomNode} host - A reference to the host dom node
+@param {DomNode} state - reference to the state of this mdedit instance
 */
-function renderChanges(host) {
+function renderChanges(state) {
+  host = state.host;
   return function(evt) {
     for (var i=0; i<host.children.length; i++) {
       if (host.children[i].getAttribute('changed')) {
-        renderLine(host, host.children[i]);
+        renderLine(state, host.children[i]);
         host.children[i].removeAttribute('changed');
       }
     }
@@ -532,12 +568,12 @@ function renderChanges(host) {
 and move the text after the cursor to the new line, if the
 cusror is on the line specified by target
 
-@param {DomNode} host - reference to the host dom node
+@param {DomNode} state - reference to the state of this mdedit instance
 @param {DomNode} target - the line div that should be split
 @param {KeyEvent} evt - the keypress event. It will be disabled (preventDefault'd)
 @param {string} className - the name of the class to clear to
 */
-function clearToType(host, target, evt, className) {
+function clearToType(state, target, evt, className) {
     console.log('clearToParagraph');
     evt.preventDefault();
 
@@ -559,25 +595,25 @@ function clearToType(host, target, evt, className) {
     moveCursor(ptext, 0);
 
     // re-evaluate this and the other thing
-    renderLine(host, lineOf(host, target));
-    renderLine(host, lineOf(host, p));
+    renderLine(state, lineOf(host, target));
+    renderLine(state, lineOf(host, p));
 }
 
 //TODO document these clearToX methods
-function clearToParagraph(host, target, evt) {
-  clearToType(host,target,evt,'p');
+function clearToParagraph(state, target, evt) {
+  clearToType(state,target,evt,'p');
 }
 
-function clearToSame(host, target, evt) {
-  clearToType(host,target,evt,lineOf(host, target).className);
+function clearToSame(state, target, evt) {
+  clearToType(state,target,evt,lineOf(state.host, target).className);
 }
 
 /** Indents / unindents a list (ul/ol) element
-@param {DomNode} host - reference to the host dom node
+@param {DomNode} state - reference to the state of this mdedit instance
 @param {DomNode} target - the list element line div to be indented
 @param {KeyEvent} evt - the keycode event triggering this indent
 */
-function elevateListElement(host, target, evt) {
+function elevateListElement(state, target, evt) {
   console.log('elevate')
   evt.preventDefault();
   var target = tagOf(target);
@@ -597,7 +633,7 @@ function elevateListElement(host, target, evt) {
 
 
   // get state variables before editing the text
-  var lineDiv = lineOf(host, target);
+  var lineDiv = lineOf(state.host, target);
   var cursorPos = getCursorPos(lineDiv);
   var orgText = target.textContent;
 
@@ -610,7 +646,7 @@ function elevateListElement(host, target, evt) {
   }
 
   // re-render this element using the original text & cursor for reference
-  renderLine(host, lineDiv, {
+  renderLine(state, lineDiv, {
     originalCursor: cursorPos,
     originalText: orgText
   });
@@ -622,25 +658,25 @@ indentation level as the target following it. Increments the header as well
 (e.g, if the current line starts with '1.', the next line will start
 with '2.')
 
-@param {DomNode} host - reference to the host dom node
+@param {DomNode} state - reference to the state of this mdedit instance
 @param {DomNode} target - the list element to insert after
 @param {KeyEvent} evt - the key event triggering this insert
 */
-function continueListElement(host, target, evt) {
+function continueListElement(state, target, evt) {
   evt.preventDefault();
   console.log('continueListElement', target);
   console.dir(target);
   if (stripListElemHead(target.textContent).length > 0) {
-    var me = lineOf(host, target);
-    clearToSame(host, target, evt)
+    var me = lineOf(state.host, target);
+    clearToSame(state, target, evt)
     var newKid = me.nextSibling;
     var nextHeader = nextListElementHeader(target.textContent)
     newKid.textContent = nextHeader + newKid.textContent;
 
-    renderLine(host, newKid);
+    renderLine(state, newKid);
     setCursorPos(newKid, nextHeader.length);
   } else {
-    clearToParagraph(host, target, evt)
+    clearToParagraph(state, target, evt)
   }
 }
 
@@ -651,26 +687,26 @@ end or beginning of a line and if the following or preceeding div is a
 
 If that is the case, it deletes the whole div.
 
-@param {DomNode} host - reference to the host dom node
+@param {DomNode} state - reference to the state of this mdedit instance
 @param {DomNode} target - the list element the backspace/delete key was 
                           pressed in
 @param {KeyEvent} evt - the key event triggering this delete evt
 */
-function checkAndDeleteBlockDiv(host, target, evt) {
+function checkAndDeleteBlockDiv(state, target, evt) {
   var tline = lineOf(host, target);
   var cpos = getCursorPos(tline);
   if (cpos == 0 && 
       evt.keyCode == keys.BACKSPACE && 
       isBlockDiv(tline.previousSibling)) {
     evt.preventDefault();
-    host.removeChild(tline.previousSibling);
+    state.host.removeChild(tline.previousSibling);
   }
 
   else if (cpos == tline.textContent.length && 
       evt.keyCode == keys.DELETE &&
       isBlockDiv(tline.nextSibling)) {
     evt.preventDefault();
-    host.removeChild(tline.nextSibling);
+    state.host.removeChild(tline.nextSibling);
   }
 }
 
@@ -1061,4 +1097,5 @@ function insertTag(parent, elem, className, text) {
   div.className = className;
   div.textContent = text;
   parent.insertBefore(div, elem);
+  return div;
 }
