@@ -70,7 +70,8 @@ $embed-height: 128px;
 .embed {
 	display: flex;
 	justify-content: flex-start;
-	height: $embed-height;
+	flex-wrap: wrap;
+	min-height: $embed-height;
 	padding: 8px;
 }
 

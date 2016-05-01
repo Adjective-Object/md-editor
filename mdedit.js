@@ -11,6 +11,9 @@ function mdedit(host) {
   host.addEventListener('keydown' , dispatchEvt(state));
   host.addEventListener('keypress', dispatchEvt(state));
   host.addEventListener('input'   , render);
+
+  // drag and drop events add too much othr stuff
+  host.addEventListener('drop'   , function(evt){evt.preventDefault()});
   
   for (var i=0; i<host.children.length; i++) {
     markForChange(state, host.children[i], undefined)
@@ -71,14 +74,6 @@ function renderLine(state, lineDiv, opt) {
   var lineText = lineDiv.textContent;  
   var cursorPos = opt.originalCursor || getCursorPos(lineDiv);
 
-  // render the content of the line
-  console.log('    extracting spans from', lineDiv);
-  lineDiv.textContent = lineText;
-  extractSpan(host, lineDiv, '`'  , 'code');
-  extractSpan(host, lineDiv, '**' , 'bold');
-  extractSpan(host, lineDiv, '*'  , 'italic');
-  extractSpan(host, lineDiv, '_'  , 'underline');
-
   console.log('handlers:', linkTextHandler, linkHrefHandler);
 
   function linkTextHandler(parent, elem, text) {
@@ -97,10 +92,12 @@ function renderLine(state, lineDiv, opt) {
     var tag = linkHrefHandler(parent, elem, imgSrc);
 
     // add the image to the data object for this line
-    var embed = document.createElement('img');
-    embed.className='embedImage';
-    embed.src = imgSrc;
-    embeddedElements.push(embed);
+    if (imgSrc != '') {
+      var embed = document.createElement('img');
+      embed.className='embedImage';
+      embed.src = imgSrc;
+      embeddedElements.push(embed);
+    }
     return tag;
   }
 
@@ -114,6 +111,14 @@ function renderLine(state, lineDiv, opt) {
     host, lineDiv, ['[', ']', '(', ')'],
     linkTextHandler, linkHrefHandler
     );
+
+
+  // render the content of the line
+  console.log('    extracting spans from', lineDiv);
+  lineDiv.textContent = lineText;
+  extractSpan(host, lineDiv, '`'  , 'code');
+  extractSpan(host, lineDiv, '**' , 'bold');
+  extractSpan(host, lineDiv, '*'  , 'italic');
 
   // insert cursor at saved position relative to line
   var cursorPosAdjustment = 0;
@@ -132,7 +137,9 @@ function renderLine(state, lineDiv, opt) {
       var depth = calculateListElemDepth(lineDiv);
       var oldTextContent = opt.originalText || lineDiv.textContent
       console.log('old text content', oldTextContent);
-      lineDiv.textContent = fixListElementSpaces(lineDiv.textContent, depth);
+      //fix first node (which is hopefully a text node?
+      var lineTextNode = getLeadingTextNode(lineDiv);
+      lineTextNode.textContent = fixListElementSpaces(lineTextNode.textContent, depth);
       cursorPosAdjustment += (lineDiv.textContent.length - oldTextContent.length);
       console.log(cursorPos, cursorPosAdjustment);
 
@@ -1121,4 +1128,8 @@ function insertTag(parent, elem, className, text) {
   div.textContent = text;
   parent.insertBefore(div, elem);
   return div;
+}
+
+function getLeadingTextNode(elem) {
+  return elem.childNodes[0];
 }
