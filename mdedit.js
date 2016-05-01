@@ -15,6 +15,7 @@ function mdedit(host) {
   // drag and drop events add too much othr stuff
   host.addEventListener('drop'   , function(evt){evt.preventDefault()});
   
+  // do initial render
   for (var i=0; i<host.children.length; i++) {
     markForChange(state, host.children[i], undefined)
   }
@@ -298,14 +299,12 @@ function extractLinks(host, elem, delims, textCallback, linkCallback) {
     var elemText = elem.textContent;
     var parent = elem.parentElement;
     while (startIndex < elemText.length) {
-      console.log (startIndex, elemText.length, elemText, delims);
       // get the index of all the delimiters. Return if any are not found
       var inds = []
       for(var i in delims) {
         var searchIndex = (i == 0) ? startIndex : inds[i-1];
         inds.push(elemText.indexOf(delims[i], searchIndex))
-        console.log(inds);
-
+        
         if (inds[i] == -1) {
           // append remaining text as a new element
           if (startIndex != 0) {
@@ -325,7 +324,6 @@ function extractLinks(host, elem, delims, textCallback, linkCallback) {
 
       insertTag(parent, elem, 'linkdelim', delims[0]);
 
-      console.log(host, elem, delims, textCallback, linkCallback);
       textCallback(parent, elem, 
         elemText.substring(inds[0] + delims[0].length, inds[1]))
 
@@ -353,7 +351,6 @@ function extractLinks(host, elem, delims, textCallback, linkCallback) {
 
     // traverse children
     for(var c=0; c< elem.childNodes.length; c++) {
-      console.log(elem.childNodes, c, elem.childNodes[c]);
       extractLinks(
         host, elem.childNodes[c], delims,
         textCallback, linkCallback);
@@ -376,7 +373,7 @@ function dispatchEvt(state) {
   return function dispatch(evt) {
     var selection = window.getSelection();
     var target = selection.anchorNode;
-    var node = tagOf(target);
+    var node = lineOf(state.host, target);
 
     // dispatch based on the node's class if a handler exists
     var classKey = node.classList[0];
@@ -384,13 +381,13 @@ function dispatchEvt(state) {
     var ignoreDefault = false;
     if (docParts[classKey] != undefined &&
         docParts[classKey][evt.type] != undefined ) {
-      ignoreDefault = docParts[classKey][evt.type](state, target, evt);
+      ignoreDefault = docParts[classKey][evt.type](state, node, evt);
     }
 
     if (!ignoreDefault && 
         docParts['*'] != undefined &&
         docParts['*'][evt.type] != undefined ) {
-      docParts['*'][evt.type](state, target, evt);
+      docParts['*'][evt.type](state, node, evt);
     }
 
     // otherwise, just re-render the line the edit happend on
@@ -427,23 +424,13 @@ var docParts = expandCharClassKeys({
     // grab things that have changed
     keydown: matchRuleset({
       actions: [
-      [keyCode(keys.TAB)                       , insertSpaces(4), true],
+      [keyCode(keys.TAB)                       , insertSpaces(4)],
       [keyCodes([keys.BACKSPACE, keys.DELETE]) , checkAndDeleteBlockDiv],
-      [always                                  , markForChange]]
+      [always                                  , markForChange],
+      ]
     }),
 
     // on input change, update only the things that have changed
-  },
-
-  'h[1,2,3,4,5,6]': {
-    keydown: matchRuleset({
-      actions: []
-    })
-  },
-
-  p: {
-    keydown: matchRuleset({
-    })
   },
 
   '[ul,ol]': {
@@ -455,6 +442,17 @@ var docParts = expandCharClassKeys({
       ignoreDefault: true
     })
   },
+
+  'codeBlock': {
+    keydown: matchRuleset({
+      actions: [
+        [keyCode(keys.ENTER),       continueCodeBlock],
+        [keyCode(keys.BACKSPACE),   clearCodeBlock],
+      ],
+      ignoreDefault: true
+    })
+
+  }
 });
 
 /** Function to map between conditions and event handlers
@@ -650,6 +648,7 @@ function clearToType(state, target, evt, className) {
     // re-evaluate this and the other thing
     renderLine(state, lineOf(host, target));
     renderLine(state, lineOf(host, p));
+    return p;
 }
 
 //TODO document these clearToX methods
@@ -759,7 +758,26 @@ function insertSpaces(numspaces) {
   return function(state, target, evt) {
     insertTextAtCursor(state.host, '\xA0'.repeat(numspaces));
     evt.preventDefault();
+    renderLine(state, target, evt);
     return true;
+  }
+}
+
+function continueCodeBlock(state, target, evt) {
+  var newElem = clearToType(state,target, evt, 'codeBlock');
+  var numSpaces = getLeadingSpaces(target.textContent);
+  newElem.appendChild(document.createTextNode('\xA0'.repeat(numSpaces)));
+  moveCursor(newElem.childNodes[0], numSpaces);
+  renderLine(state, newElem, evt)
+}
+
+function clearCodeBlock(state, target, evt) {
+  var line = lineOf(state.host, target);
+  var numSpaces = getLeadingSpaces(target.textContent);
+  if(getCursorPos(line) == numSpaces) {
+    line.textContent = line.textContent.substring(numSpaces);
+    evt.preventDefault();
+    renderLine(state, target, evt);
   }
 }
 
@@ -1168,7 +1186,6 @@ function makeListNonLive(liveList) {
 }
 
 function insertTextAtCursor(host, txt) {
-  console.log('insert', txt);
   var selection = window.getSelection();
 
   console.dir(selection.anchorNode);
@@ -1188,8 +1205,7 @@ function insertTextAtCursor(host, txt) {
 
   setCursorPos(anchor, offset + txt.length);
 
-  console.log('I tried to set offset', anchor, offset + txt.length);
-  console.dir(window.getSelection());
+  
 }
 
 function setClass(c) { 
