@@ -43,8 +43,8 @@
 }
 
 @for $i from 1 through 6 {
-	.ol.depth-#{$i},
-	.ul.depth-#{$i} {
+	.ol[depth="#{$i}"],
+	.ul[depth="#{$i}"] {
 		padding-left: (0.5 + ($i - 1)) * 1em;
 	}	
 }

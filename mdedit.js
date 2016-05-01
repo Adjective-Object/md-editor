@@ -81,7 +81,8 @@ function renderLine(state, lineDiv, opt) {
   };
   function linkHrefHandler(parent, elem, href){
     var div = document.createElement('a')
-    div.className = 'linkhref literal';
+    div.className = 'linkhref';
+    div.setAttribute('literal', 'true');
     div.textContent = href;
     div.href = href;
     parent.insertBefore(div, elem);
@@ -146,7 +147,7 @@ function renderLine(state, lineDiv, opt) {
       cursorPosAdjustment += (lineDiv.textContent.length - oldTextContent.length);
       console.log(cursorPos, cursorPosAdjustment);
 
-      lineDiv.classList.add('depth-' + depth);
+      lineDiv.setAttribute('depth', depth);
 
       break;
 
@@ -268,7 +269,7 @@ function extractSpan(parent, elem, delim, className, isChild) {
   else {
 
     // do not traverse literal elements
-    if (! elem.classList.contains('literal')) {
+    if (! elem.getAttribute('literal')) {
       // convert live list to non-live list and traverse
       var nonLiveChildren = makeListNonLive(elem.childNodes);
       for (var i=0; i<nonLiveChildren.length; i++) {
@@ -339,7 +340,7 @@ function extractLinks(host, elem, delims, textCallback, linkCallback) {
     console.dir(elem);
 
     // do not traverse literal elements
-    if (elem.classList.contains('literal')) {
+    if (elem.getAttribute('literal')) {
       return;
     }
 
@@ -658,20 +659,8 @@ function elevateListElement(state, target, evt) {
   console.log('elevate')
   evt.preventDefault();
   var target = tagOf(target);
-  // get the depth class
-  var depthClass = 'depth-1';
-  for (var i=0; i < target.classList.length; i++) {
-    if(target.classList[i].startsWith('depth-')) {
-      depthClass = target.classList[i];
-      break;
-    }
-  }
-
-  var newDepth = Math.min(6, 
-    parseInt(depthClass.substring('depth-'.length)) + 
-    (evt.shiftKey ? -1 : 1)
-  );
-
+  var currentDepth = 1 | target.getAttribute('depth')
+  var newDepth = Math.min(6, currentDepth + (evt.shiftKey ? -1 : 1));
 
   // get state variables before editing the text
   var lineDiv = lineOf(state.host, target);
