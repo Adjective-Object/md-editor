@@ -1,0 +1,22 @@
+{
+    "extends": [
+        "strict/es6"
+    ],
+    "format": "./node_modules/lintscreen",
+    "env": {
+	    "browser": true
+	},
+
+	"rules": {
+		"id-match": ["error", "(^[a-z]+([A-Z][a-z]+)*$|^[A-Z_]+[A-Z0-9_]+)"],
+		"id-length": ["off"],
+		"newline-after-var": ["off"],
+
+		// allow single line functions
+		"brace-style": ["error", "1tbs", {"allowSingleLine": true}],
+
+		// disable use checking on args
+		"no-unused-vars": ["error", { "args": "none" }]
+
+	}
+}
