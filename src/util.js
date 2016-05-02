@@ -1,4 +1,4 @@
-import {MAX_HEADER_DEPTH, OFFSET_INVALID, keys} from './constants';
+import { MAX_HEADER_DEPTH, OFFSET_INVALID } from './constants';
 
 // ////////
 // UTIL //

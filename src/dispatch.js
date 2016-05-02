@@ -1,4 +1,4 @@
-import { lineOf, keys } from './util';
+import { lineOf } from './util';
 
 /** Event Dispatching */
 

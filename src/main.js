@@ -62,6 +62,23 @@ const evtMapping = expandCharClassKeys({
 });
 
 
+/** Passes over all line divs (all direct children of the host div)
+And re-renders all that have been marked for change
+@param {DomNode} state - reference to the state of this mdedit instance
+*/
+export function renderChanges(state) {
+  const host = state.host;
+  return function renderChangesHandler(evt) {
+    for (let i = 0; i < host.children.length; i++) {
+      if (host.children[i].getAttribute('changed')) {
+        renderLine(state, host.children[i]);
+        host.children[i].removeAttribute('changed');
+      }
+    }
+  };
+}
+
+
 /** Main API hook that sets up event listeners on an mdedit-host div
 @param {DomNode} host - The 'host' div. that mdedit will listen for events on
 */
@@ -85,20 +102,4 @@ export function bind(host, docParts) {
     markForChange(state, host.children[i]);
   }
   render();
-}
-
-/** Passes over all line divs (all direct children of the host div)
-And re-renders all that have been marked for change
-@param {DomNode} state - reference to the state of this mdedit instance
-*/
-export function renderChanges(state) {
-  const host = state.host;
-  return function renderChangesHandler(evt) {
-    for (let i = 0; i < host.children.length; i++) {
-      if (host.children[i].getAttribute('changed')) {
-        renderLine(state, host.children[i]);
-        host.children[i].removeAttribute('changed');
-      }
-    }
-  };
 }
