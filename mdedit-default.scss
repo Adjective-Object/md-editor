@@ -50,9 +50,23 @@
 }
 
 .codeBlock {
-	background-color: rgba(0,0,0, 0.1);
+	background-color: #EEEEEE;
 	font-family: monospace;
+
+	*:not(.codeBlock) + & {
+		padding-top: 0.5em;
+	}
+
+	& + *:not(.codeBlock) + & {
+		padding-bottom: 0.5em;
+	}
+
+	padding-bottom: 8px;
+	margin-top: 8px;
+	margin-bottom: 8px;
 }
+*:not(.codeBlock) + .codeBlock { padding-top: 8px; }
+.codeBlock + .codeBlock { margin-top: -16px; }
 
 .linkdelim {
 	display: inline-block;
