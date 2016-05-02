@@ -180,7 +180,9 @@ export function insertSpaces(numspaces) {
 export function continueCodeBlock(state, target, evt) {
   const newElem = clearToType(state, target, evt, 'codeBlock');
   const numSpaces = getLeadingSpaces(target.textContent);
-  newElem.appendChild(document.createTextNode('\xA0'.repeat(numSpaces)));
+  newElem.insertBefore(
+    document.createTextNode('\xA0'.repeat(numSpaces)),
+    newElem.childNodes[0]);
   moveCursor(newElem.childNodes[0], numSpaces);
   renderLine(state, newElem, evt);
 }
