@@ -30,14 +30,28 @@ const codeFenceRegex = /^(```|~~~)/;
 
 const emptyLineRegex = /^\s*$/;
 
-/** Helper function to classify a line based on it's text content
+
+function isIndentedCodeBlockValid(lineDiv) {
+  // indented code blocks
+  if (/^\s{4}/.test(lineDiv.textContent)) {
+    if (
+      lineDiv.previousSibling === null ||
+      lineDiv.previousSibling.classList.contains('codeBlock') ||
+      emptyLineRegex.test(lineDiv.previousSibling.textContent)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Helper function to classify a line based on its text and siblings
 @param {string} lineText - text content of div
 */
 function classifyLine(lineDiv) {
   const lineText = lineDiv.textContent;
   if (codeFenceRegex.test(lineText)) {
     return 'codeFence';
-  }else if (indentedCodeBlockRegex.test(lineText) && 
+  } else if (indentedCodeBlockRegex.test(lineText) &&
             isIndentedCodeBlockValid(lineDiv)) {
     return 'codeBlock';
   } else if (lineText[0] === '#') {
@@ -261,23 +275,6 @@ function domManipSep(parseState) {
   }
 }
 
-function isIndentedCodeBlockValid(lineDiv) {
-  // indented code blocks
-  console.log (lineDiv, lineDiv.textContent);
-  if (/^\s{4}/.test(lineDiv.textContent)) {
-    console.log('candidate');
-    console.dir(lineDiv);
-    if (
-      lineDiv.previousSibling === null ||
-      lineDiv.previousSibling.classList.contains('codeBlock') ||
-      emptyLineRegex.test(lineDiv.previousSibling.textContent)) {
-
-      return true;
-    }
-  }
-  return false;
-}
-
 function renderStepTextManip(parseState) {
   const lineDiv = parseState.lineDiv;
 
@@ -384,8 +381,8 @@ export function renderLine(state, lineDiv, opt) {
   };
 
   parseState.evalSuccessor = (
-    lineDiv.nextSibling !== null && ( 
-      lineDiv.nextSibling.className == 'codeBlock' ||
+    lineDiv.nextSibling !== null && (
+      lineDiv.nextSibling.className === 'codeBlock' ||
       emptyLineRegex.test(lineDiv.textContent)
     ));
 

@@ -34,7 +34,7 @@ const evtMapping = expandCharClassKeys({
       [ keyCodes([ keys.BACKSPACE, keys.DELETE ]), checkAndDeleteBlockDiv ],
       [ always, markForChange ],
       ],
-    }), 
+    }),
 
     // on input change, update only the things that have changed
   },
