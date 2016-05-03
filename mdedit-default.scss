@@ -65,7 +65,8 @@
 	margin-top: 8px;
 	margin-bottom: 8px;
 }
-*:not(.codeBlock) + .codeBlock { padding-top: 8px; }
+*:not(.codeBlock) + .codeBlock,
+.codeBlock:first-child { padding-top: 8px; }
 .codeBlock + .codeBlock { margin-top: -16px; }
 
 .linkdelim {

@@ -22,14 +22,25 @@ const olRegex = /^\s*[0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV
 /** @const sepRegex - a regex identifying line separator elements*/
 const sepRegex = /^---.*/;
 
-const codeBlockRegex = /^\s{4}/;
+/** @const codeBlockRegex - a regex identifying code blocks*/
+const indentedCodeBlockRegex = /^\s{4}/;
 
+/** @const codeFenceRegex - a regex identifying code fences*/
+const codeFenceRegex = /^(```|~~~)/;
+
+const emptyLineRegex = /^\s*$/;
 
 /** Helper function to classify a line based on it's text content
 @param {string} lineText - text content of div
 */
-function classifyLine(lineText) {
-  if (lineText[0] === '#') {
+function classifyLine(lineDiv) {
+  const lineText = lineDiv.textContent;
+  if (codeFenceRegex.test(lineText)) {
+    return 'codeFence';
+  }else if (indentedCodeBlockRegex.test(lineText) && 
+            isIndentedCodeBlockValid(lineDiv)) {
+    return 'codeBlock';
+  } else if (lineText[0] === '#') {
     return 'h';
   } else if (sepRegex.test(lineText)) {
     return 'sep';
@@ -37,8 +48,6 @@ function classifyLine(lineText) {
     return 'ul';
   } else if (olRegex.test(lineText)) {
     return 'ol';
-  } else if (codeBlockRegex.test(lineText)) {
-    return 'codeBlock';
   }
 
   return 'p';
@@ -252,13 +261,30 @@ function domManipSep(parseState) {
   }
 }
 
+function isIndentedCodeBlockValid(lineDiv) {
+  // indented code blocks
+  console.log (lineDiv, lineDiv.textContent);
+  if (/^\s{4}/.test(lineDiv.textContent)) {
+    console.log('candidate');
+    console.dir(lineDiv);
+    if (
+      lineDiv.previousSibling === null ||
+      lineDiv.previousSibling.classList.contains('codeBlock') ||
+      emptyLineRegex.test(lineDiv.previousSibling.textContent)) {
+
+      return true;
+    }
+  }
+  return false;
+}
+
 function renderStepTextManip(parseState) {
   const lineDiv = parseState.lineDiv;
 
   // determine class of this line and perform changes which can change the text
-  // content of a line based on the classs
-  const lineClass = classifyLine(parseState.lineText);
-  parseState.evalSuccessor = (
+  // content of a line based on the classs. Also sets the className of the line
+  const lineClass = classifyLine(lineDiv);
+  parseState.evalSuccessor = parseState.evalSuccessor || (
     (lineDiv.className === 'ul' ||
       lineDiv.className === 'ol') &&
     lineClass !== lineDiv.className);
@@ -279,6 +305,7 @@ function renderStepTextManip(parseState) {
       domManipSep(parseState);
       break;
 
+    case 'codeBlock':
     case 'p':
     default:
       lineDiv.className = lineClass;
@@ -356,16 +383,22 @@ export function renderLine(state, lineDiv, opt) {
     evalSuccessor: false,
   };
 
+  parseState.evalSuccessor = (
+    lineDiv.nextSibling !== null && ( 
+      lineDiv.nextSibling.className == 'codeBlock' ||
+      emptyLineRegex.test(lineDiv.textContent)
+    ));
+
   // reset div to just text
   lineDiv.textContent = parseState.lineText;
 
-  /* STEP 1 : CLASS-BASED TEXT TRANSFORMATION */
+  /* CLASS-BASED TEXT TRANSFORMATION */
   renderStepTextManip(parseState);
 
-  /* STEP 2 : NON-TEXT-ALTERING OPERATIONS */
+  /* NON-TEXT-ALTERING OPERATIONS */
   renderStepExtractDomElements(parseState);
 
-  /* STEP 3 : OPERATIONS THAT DO NOT ALTER THE LINE */
+  /*  OPERATIONS THAT DO NOT ALTER THE LINE */
   renderStepRepairCursor(parseState);
   renderStepInsertEmbeds(parseState);
 
