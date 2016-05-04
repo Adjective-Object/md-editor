@@ -275,17 +275,12 @@ function domManipSep(parseState) {
   }
 }
 
-function renderStepTextManip(parseState) {
+function renderStepApplyClass(parseState) {
   const lineDiv = parseState.lineDiv;
+  const lineClass = parseState.lineClass;
 
   // determine class of this line and perform changes which can change the text
   // content of a line based on the classs. Also sets the className of the line
-  const lineClass = classifyLine(lineDiv);
-  parseState.evalSuccessor = parseState.evalSuccessor || (
-    (lineDiv.className === 'ul' ||
-      lineDiv.className === 'ol') &&
-    lineClass !== lineDiv.className);
-
   switch (lineClass) {
     case 'h':
       lineDiv.className = `h${ countHeaderHashes(parseState.lineText) }`;
@@ -389,14 +384,24 @@ export function renderLine(state, lineDiv, opt) {
   // reset div to just text
   lineDiv.textContent = parseState.lineText;
 
-  /* CLASS-BASED TEXT TRANSFORMATION */
-  renderStepTextManip(parseState);
+  // Classify, and perform actions based on class change
+  parseState.lineClass = classifyLine(lineDiv);
 
-  /* NON-TEXT-ALTERING OPERATIONS */
+  parseState.evalSuccessor = parseState.evalSuccessor || (
+    (lineDiv.className === 'ul' ||
+      lineDiv.className === 'ol') &&
+    parseState.lineClass !== lineDiv.className);
+
+  // apply new class
+  renderStepApplyClass(parseState);
+
+  // extract spans (links, italics, underlines, etc)
   renderStepExtractDomElements(parseState);
 
-  /*  OPERATIONS THAT DO NOT ALTER THE LINE */
+  // repair text cursor position
   renderStepRepairCursor(parseState);
+
+  // insert embedded items
   renderStepInsertEmbeds(parseState);
 
   if (parseState.evalSuccessor && lineDiv.nextSibling) {

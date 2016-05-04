@@ -324,14 +324,14 @@ export function nextListElementHeader(str) {
     const spacing = str.substring(0, numLeadingSpaces);
     const digits = headerCharSuccessor(str.substring(numLeadingSpaces, numDigits));
     const divider = str.substring(numDigits, numDigits + 1);
-    return `${ spacing }${ digits }${ divider }\xA0`;
+    return `${ spacing }${ digits }${ divider }${ '\xA0' }`;
   }
 
   // case of not digits
   const spacing = str.substring(0, numLeadingSpaces);
   const bullet = str.substring(numLeadingSpaces, numLeadingSpaces + 1);
 
-  return `${ spacing }${ bullet }\xA0`;
+  return `${ spacing }${ bullet }${ '\xA0' }`;
 }
 
 
