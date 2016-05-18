@@ -86,6 +86,10 @@ export function bind(host, docParts) {
   const state = {
     // Maintian a reference to the host div in state
     host,
+
+    // keep track of fences
+    fences: [],
+    lastFences: {}
   };
 
   const render = renderChanges(state);

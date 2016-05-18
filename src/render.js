@@ -6,8 +6,13 @@ import {
 } from './util';
 import {
   OFFSET_INVALID, SEPARATOR_DASH_LENGTH,
+  DOCUMENT_POSITION_PRECEDING
 } from './constants';
-
+import {
+  insertFence,
+  removeFence,
+  inFence
+} from './fences';
 
 // ///////////////////////////////
 // Render Function And Helpers //
@@ -375,22 +380,60 @@ export function renderLine(state, lineDiv, opt) {
     evalSuccessor: false,
   };
 
-  parseState.evalSuccessor = (
-    lineDiv.nextSibling !== null && (
-      lineDiv.nextSibling.className === 'codeBlock' ||
-      emptyLineRegex.test(lineDiv.textContent)
-    ));
-
   // reset div to just text
   lineDiv.textContent = parseState.lineText;
 
   // Classify, and perform actions based on class change
   parseState.lineClass = classifyLine(lineDiv);
 
+  // eval the successor if the line changed from an ol/ul
   parseState.evalSuccessor = parseState.evalSuccessor || (
     (lineDiv.className === 'ul' ||
       lineDiv.className === 'ol') &&
     parseState.lineClass !== lineDiv.className);
+
+  // evaluate fences if the line changed from a non-fence to a fence
+  if (parseState.lineClass === 'codeFence' &&
+      lineDiv.className !== 'codeFence') {
+
+    const delims = insertFence(state, lineDiv);
+    console.log(delims);
+    if (delims !== null ) {
+      const changeRangeEnd = delims[1];
+      let scanner = delims[0];
+      console.log (delims, scanner, changeRangeEnd);
+      while (
+        scanner.compareDocumentPositon(changeRangeEnd) &
+        DOCUMENT_POSITION_PRECEDING) {
+        // reset to text, apply classes
+        renderLine(state, scanner, {});
+      }     
+    }
+  } else if (
+      lineDiv.className === 'codeFence' && 
+      parseState.lineClass !== 'codeFence') {
+    // otherwise if this line changed from a fence to a non-fence, try to
+    // remove it from the list of fences
+    console.log(lineDiv.className, parseState.lineClass);
+    removeFence(state, lineDiv);
+
+  } else if (inFence(state, lineDiv)) {
+    // otherwise if this line is inside of a code block, don't do styling
+    // and instead just chill
+    console.log('in fence!');
+    lineDiv.textContent = lineDiv.textContent;
+    lineDiv.className = 'codeFenceBlock';
+    return;
+  }
+  console.log('not in fence');
+
+  parseState.evalSuccessor = (
+    lineDiv.nextSibling !== null && (
+      lineDiv.nextSibling.className === 'codeBlock' ||
+      emptyLineRegex.test(lineDiv.textContent)
+    ));
+
+
 
   // apply new class
   renderStepApplyClass(parseState);

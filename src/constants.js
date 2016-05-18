@@ -24,3 +24,8 @@ export const asciiKeys = makeKeySet(
 	' !"#$%&\'()*+,-./0123456789:;<=>?@' +
 	'ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`' +
 	'abcdefghijklmnopqrstuvwxyz{|}~');
+
+
+
+export const DOCUMENT_POSITION_PRECEDING = 2;
+export const DOCUMENT_POSITION_FOLLOWING = 4;

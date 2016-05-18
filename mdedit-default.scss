@@ -49,9 +49,14 @@
 	}	
 }
 
-.codeBlock {
+
+
+.codeBlock, .codeFence, .codeFenceBlock {
 	background-color: #EEEEEE;
 	font-family: monospace;
+}
+
+.codeBlock {
 
 	*:not(.codeBlock) + & {
 		padding-top: 0.5em;
@@ -84,7 +89,6 @@
 	display:inline-block;
 	color: rgba(0,0,0,0.8);
 }
-
 
 $embed-height: 128px; 
 .embed {
