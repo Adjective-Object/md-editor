@@ -11,7 +11,6 @@ import {
 } from './constants';
 import {
   insertFence,
-  removeFence,
   inFence
 } from './fences';
 
@@ -412,14 +411,6 @@ export function renderLine(state, lineDiv, opt) {
       //   scanner = scanner.nextSibling;
       // }     
     }
-  } else if (
-      lineDiv.className === 'codeFence' && 
-      parseState.lineClass !== 'codeFence') {
-    // otherwise if this line changed from a fence to a non-fence, try to
-    // remove it from the list of fences
-    console.log(lineDiv.className, parseState.lineClass);
-    removeFence(state, lineDiv);
-
   } else if (inFence(state, lineDiv)) {
     // otherwise if this line is inside of a code block, don't do styling
     // and instead just chill

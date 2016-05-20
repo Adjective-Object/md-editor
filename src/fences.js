@@ -7,68 +7,54 @@ import {
 Utility functions for keeping track of the code fences
 references the 'host' and 'fences' fields of the state object
 
-fences is a sorted list of objects keeping track of all the fence nodes
-fences: [
-	{ node : DOMNode
-	, type: '~'|'`' (type not implemented)
-	, scanState: 'enter' / 'exit' / 'ignored'
-	}
-]
 lastFences: [
 	'~': int,
 	'`': int
 ]
 
 
-*/
+THIS IS STUPID, WE ONLY NEED TO TRACK LAST FENCES
+INFORMATION IS ALREADY STORED IN HTML DOM
+GET FENCES ON EACH PASS BY CALLING
+host.getElementsByClassName('codeFence');
 
-/**
-find the index that this node should be inserted before.
-Returns length of list if should be inserted at end
 */
-// TODO implement a faster search algo
-function getInsertionIndex(fences, newFence) {
-	for (let i = 0; i < fences.length; i++) {
-		let position = fences[i].node.compareDocumentPosition(newFence);
-		if (position & DOCUMENT_POSITION_PRECEDING) {
-			return i;
-		}
-	}
-	return fences.length;
-}
 
 function fenceType(node) {
 	return node.textContent.charAt(0);
 }
 
-function repairFences(state, index, currentBlock) {
-	let fences = state.fences;
-	let lastFences = state.lastFences;
+function getPreviousFence(node) {
+	node = node.previousSibling;
+	while (node && !node.classList.contains('codeFence')) {
+		console.log('traversing from', node);
+		node = node.previousSibling
+	}
+	return node;
+}
+
+function getOpeningFence(node) {
+	node = getPreviousFence(node)
+	while (node && (
+		node.getAttribute('fencestate') === 'enter' ||
+		node.getAttribute('fencestate') === 'unpaired' )) {
+		node = getPreviousFence(node);		
+	}
+	return node;
+}
+
+function getRenderRange(state, newFence) {
+	openingFence = getOpeningFence(newFence);
+	closingFence = getClosingFence(newFence);
 	
-	let changeRangeStart = null;
-	let changeRangeEnd = null;
+	openingFenceState = openingFence.getAttribute('fencestate');
+	newFenceState = newFence.getAttribute('fencestate');
 
-	for (let i = index; i < fences.length; i++) {
-		let newScanState = 'ignored';
-
-		if (fences[i].type === currentBlock) {
-			newScanState = 'exit';
-		}
-
-		if (currentBlock === null && lastFences[fences[i].type] > i) {
-			newScanState = 'enter';
-		}
-
-		if (newScanState !== fences[i].scanState) {
-			// mark the beginning / end of a changed range
-			if (changeRangeStart === null) {
-				changeRangeStart = fences[i];
-			}
-			changeRangeEnd = fences[i];
-		}
+	if (openingFenceState === 'unpaired') {
+		previousFence.setAttribute('fencestate', 'enter');
+		return [previousFence, newFence];
 	}
 
-	return [changeRangeStart.node, changeRangeEnd.node];
 }
 
 // inserts a fence object into the fence array and returns a list of nodes
@@ -76,70 +62,64 @@ function repairFences(state, index, currentBlock) {
 // returns a list of the fences that need to be evaluated
 // TODO check if the fence already exists in the list of fences
 export function insertFence(state, newFenceNode) {
-	let fences = state.fences;
 	let lastFences = state.lastFences;
+	let previousFence = getPreviousFence(newFenceNode);
+	console.log('insertion, previous is', previousFence);
 
-	let insertionPoint = getInsertionIndex(fences, newFenceNode);
+	let previousFenceType = previousFence
+		? fenceType(previousFence)
+		: null;
+	let previousFenceState = previousFence 
+		? previousFence.getAttribute('fencestate') 
+		: null;
 
-	console.log('inserting at index', insertionPoint);
-	let insertionFence = fences[insertionPoint - 1];
-
-	console.log('insertionFence', insertionFence);
-	let insertionType = insertionFence ? insertionFence.type : null;
-	
-	let scanState = insertionFence ? insertionFence.scanState : null;
 	let newFenceType = fenceType(newFenceNode);
 
-	// figure out if this insertion requires a re-evaluation of the things after
-	// this point
+	// find out how to handle this fence and the context of the fence
+	// based on the previous fence
 
-	let newFenceState = 'ignored';
-	switch (scanState) {
+	let newFenceState;
+	switch (previousFenceState) {
 		case 'enter':
-			currentBlock = null;
+			newFenceState = (newFenceType === previousFenceType) 
+				? 'exit'
+				: 'ignored';
+			break;
+
+		case 'exit':
 			newFenceState = 'enter';
 			break;
-		case 'exit':
-			newFenceState = (newFenceType === insertionType) 
-				? 'exit'
-				: 'ignored';
-			break;
+
 		case 'ignored':
-			newFenceState = (newFenceType !== insertionType) 
+			newFenceState = (newFenceType !== previousFenceType) 
 				? 'exit'
 				: 'ignored';
 			break;
+
 		case 'unpaired':
 			newFenceState = 'exit';
-			insertionFence.scanState = 'enter';
 			break;
+
+		default:
+			// log warning and fall though to null case
+			console.log(
+				'unhandled case for previousFenceState',
+				previousFenceState);
 		case null:
 			newFenceState = 'unpaired';
 			break;
 	}
 
-	// get the current state
-	let currentBlock = null;
-	switch (newFenceState) {
-		case 'enter': currentBlock = newFenceType; break;
-		case 'exit': currentBlock = null; break;
-		case 'ignored': currentBlock = (newFenceType == '~') ? '`' : '~'; break;
-		case 'unpaired': currentBlock = null; break;
-	}
-
-	// insert the new fence
-	fences.splice(insertionPoint, 0, {
-		node: newFenceNode,
-		type: newFenceType,
-		scanState: newFenceState
-	})
+	// assign newFenceState
+	newFenceNode.setAttribute('fencestate', newFenceState);
 
 	// register newest fence as the last fence if it is beyond the previous
 	// last fence
-	console.log('insert..', insertionPoint, lastFences, newFenceType);
 	if (!(newFenceType in lastFences) ||
-		lastFences[newFenceType] < insertionPoint) {
-		lastFences[newFenceType] = insertionPoint
+		(lastFences[newFenceType].compareDocumentPosition(newFenceNode) &
+		 DOCUMENT_POSITION_PRECEDING) !== 0
+	   ) {
+		lastFences[newFenceType] = newFenceNode
 	}
 	console.log(lastFences);
 
@@ -147,12 +127,12 @@ export function insertFence(state, newFenceNode) {
 
 	switch (newFenceState) {
 		case 'exit':
-		console.log('exiting');
-		return repairFences(state, insertionPoint - 1, currentBlock);
+		return null;
+		//return getRenderRange(state, previousFence, newFenceNode);
 		
 		case 'enter':
-		console.log('entering');
-		return repairFences(state, insertionPoint, currentBlock);
+		return null;
+		//return getRenderRange(state, previousFence, newFenceNode);
 		
 		case 'ignored':
 		case 'unpaired':
@@ -163,68 +143,25 @@ export function insertFence(state, newFenceNode) {
 	return null;
 }
 
-export function removeFence(state, fenceDiv) {
-	console.log('removeFence', fenceDiv);
-	let foundFenceIndex = -1;
-	for (let i=0; i<state.fences.length; i++) {
-		if (state.fences[i].node.isSameNode(fenceDiv)) {
-			foundFenceIndex = i;
-			break;
-		}
-	}
-
-	if (foundFenceIndex === -1) {
-		console.log('error: tried to remove fence not in list of fences');
-		console.log('fences:', state.fences);
-		console.log('fence div:', fenceDiv);		
-	}
-
-	// todo repair lastFences
-	state.fences.splice(foundFenceIndex,1);
-
-	let foundKey = null;
-	for (let f in state.lastFences) {
-		if (state.lastFences[f] == foundFenceIndex) {
-			delete state.lastFences[f]; // find index of last fences
-			foundKey = f;
-			break;
-		}
-	}
-	
-	if (foundKey !== null) {
-		for (let i=state.fences.length-1; i>=0; i--) {
-			if (state.fences[i].type === foundKey) {
-				state.lastFences[foundKey] = i;
-				break;
-			}
-		}
-	}
-}
-
 export function inFence(state, lineDiv) {
-	let currentFence = null;
-	console.log('trying to determine if is in fence');
-	for (let i=0; i<state.fences.length; i++) {
-		let position = lineDiv.compareDocumentPosition(state.fences[i].node);
-		console.log(
-			state.fences[i],
-			position & DOCUMENT_POSITION_PRECEDING,
-			state.lastFences);
+	if (lineDiv.classList.contains('codeFence')) return false;
 
-		if (position & DOCUMENT_POSITION_PRECEDING) {
-			if (currentFence === null) {
-				if (i < state.lastFences[state.fences[i].type]) {
-					// transitioning from empty to a type
-					currentFence = state.fences[i].type
-				}
-			} else if (currentFence === state.fences[i].type) {
-				// transitioning from a type to null on exit
-				currentFence = null;
-			}
-		} else {
-			return currentFence !== null;
-		}
-		console.log(currentFence);
+	let previousFence = getPreviousFence(lineDiv);
+	console.log('preceded by', previousFence);
+	if (previousFence === null) return false;
+
+	if (state.lastFences[fenceType(previousFence)].compareDocumentPosition(
+		lineDiv) & DOCUMENT_POSITION_PRECEDING !== 0) {
+		return false;
 	}
-	return currentFence !== null;
+
+	switch (previousFence.getAttribute('fencestate')) {
+		case 'ignored':
+		case 'enter':
+			return true;
+		case 'unpaired':
+		case 'exit':
+		default:
+			return false;
+	}
 }

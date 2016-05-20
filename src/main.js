@@ -86,9 +86,6 @@ export function bind(host, docParts) {
   const state = {
     // Maintian a reference to the host div in state
     host,
-
-    // keep track of fences
-    fences: [],
     lastFences: {}
   };
 
@@ -98,16 +95,7 @@ export function bind(host, docParts) {
   host.addEventListener('input', render);
   host.addEventListener('mousedown', function() {
     console.log(state.lastFences);
-    console.log(state.fences);
-    for (let f in state.fences) {
-      state.fences[f].node.style.backgroundColor = 'red';
-      setTimeout(
-        () => {state.fences[f].node.style = {}},
-        800
-      );
-
-    }
-  });
+ });
 
   // drag and drop events add too much othr stuff
   host.addEventListener('drop',
