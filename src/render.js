@@ -6,7 +6,8 @@ import {
 } from './util';
 import {
   OFFSET_INVALID, SEPARATOR_DASH_LENGTH,
-  DOCUMENT_POSITION_PRECEDING
+  DOCUMENT_POSITION_PRECEDING,
+  DOCUMENT_POSITION_FOLLOWING
 } from './constants';
 import {
   insertFence,
@@ -397,17 +398,19 @@ export function renderLine(state, lineDiv, opt) {
       lineDiv.className !== 'codeFence') {
 
     const delims = insertFence(state, lineDiv);
-    console.log(delims);
+    console.log('delims:', delims);
     if (delims !== null ) {
       const changeRangeEnd = delims[1];
       let scanner = delims[0];
-      console.log (delims, scanner, changeRangeEnd);
-      while (
-        scanner.compareDocumentPositon(changeRangeEnd) &
-        DOCUMENT_POSITION_PRECEDING) {
-        // reset to text, apply classes
-        renderLine(state, scanner, {});
-      }     
+      console.log ('scanner starts', scanner);
+      // while (
+      //   scanner.compareDocumentPosition(changeRangeEnd) &
+      //   DOCUMENT_POSITION_FOLLOWING) {
+      //   console.log ('scanner', scanner);
+      //   // reset to text, apply classes
+      //   renderLine(state, scanner, {});
+      //   scanner = scanner.nextSibling;
+      // }     
     }
   } else if (
       lineDiv.className === 'codeFence' && 
@@ -425,7 +428,6 @@ export function renderLine(state, lineDiv, opt) {
     lineDiv.className = 'codeFenceBlock';
     return;
   }
-  console.log('not in fence');
 
   parseState.evalSuccessor = (
     lineDiv.nextSibling !== null && (

@@ -68,7 +68,7 @@ function repairFences(state, index, currentBlock) {
 		}
 	}
 
-	return [changeRangeStart, changeRangeEnd];
+	return [changeRangeStart.node, changeRangeEnd.node];
 }
 
 // inserts a fence object into the fence array and returns a list of nodes
@@ -80,8 +80,12 @@ export function insertFence(state, newFenceNode) {
 	let lastFences = state.lastFences;
 
 	let insertionPoint = getInsertionIndex(fences, newFenceNode);
-	let insertionFence = fences[insertionPoint];
-	let insertionType = insertionFence ? fences[insertionPoint].type : null;
+
+	console.log('inserting at index', insertionPoint);
+	let insertionFence = fences[insertionPoint - 1];
+
+	console.log('insertionFence', insertionFence);
+	let insertionType = insertionFence ? insertionFence.type : null;
 	
 	let scanState = insertionFence ? insertionFence.scanState : null;
 	let newFenceType = fenceType(newFenceNode);
@@ -105,6 +109,13 @@ export function insertFence(state, newFenceNode) {
 				? 'exit'
 				: 'ignored';
 			break;
+		case 'unpaired':
+			newFenceState = 'exit';
+			insertionFence.scanState = 'enter';
+			break;
+		case null:
+			newFenceState = 'unpaired';
+			break;
 	}
 
 	// get the current state
@@ -113,6 +124,7 @@ export function insertFence(state, newFenceNode) {
 		case 'enter': currentBlock = newFenceType; break;
 		case 'exit': currentBlock = null; break;
 		case 'ignored': currentBlock = (newFenceType == '~') ? '`' : '~'; break;
+		case 'unpaired': currentBlock = null; break;
 	}
 
 	// insert the new fence
@@ -124,45 +136,95 @@ export function insertFence(state, newFenceNode) {
 
 	// register newest fence as the last fence if it is beyond the previous
 	// last fence
-	lastFences[newFenceType] = Math.max(
-		insertionPoint, 
-		lastFences[newFenceType]);
+	console.log('insert..', insertionPoint, lastFences, newFenceType);
+	if (!(newFenceType in lastFences) ||
+		lastFences[newFenceType] < insertionPoint) {
+		lastFences[newFenceType] = insertionPoint
+	}
+	console.log(lastFences);
 
 	// repair following fences if needed
-	if (newFenceState !== 'ignored') {
-		return repairFences(state, insertionPoint + 1, currentBlock);
+
+	switch (newFenceState) {
+		case 'exit':
+		console.log('exiting');
+		return repairFences(state, insertionPoint - 1, currentBlock);
+		
+		case 'enter':
+		console.log('entering');
+		return repairFences(state, insertionPoint, currentBlock);
+		
+		case 'ignored':
+		case 'unpaired':
+		default:
+		return null
 	}
 
 	return null;
 }
 
 export function removeFence(state, fenceDiv) {
+	console.log('removeFence', fenceDiv);
+	let foundFenceIndex = -1;
 	for (let i=0; i<state.fences.length; i++) {
 		if (state.fences[i].node.isSameNode(fenceDiv)) {
-			state.fences.splice(i,1);
-			return;
+			foundFenceIndex = i;
+			break;
 		}
 	}
-	console.log('error: tried to remove fence not in list of fences');
-	console.log('fences:', state.fences);
-	console.log('fence div:', fenceDiv);
+
+	if (foundFenceIndex === -1) {
+		console.log('error: tried to remove fence not in list of fences');
+		console.log('fences:', state.fences);
+		console.log('fence div:', fenceDiv);		
+	}
+
+	// todo repair lastFences
+	state.fences.splice(foundFenceIndex,1);
+
+	let foundKey = null;
+	for (let f in state.lastFences) {
+		if (state.lastFences[f] == foundFenceIndex) {
+			delete state.lastFences[f]; // find index of last fences
+			foundKey = f;
+			break;
+		}
+	}
+	
+	if (foundKey !== null) {
+		for (let i=state.fences.length-1; i>=0; i--) {
+			if (state.fences[i].type === foundKey) {
+				state.lastFences[foundKey] = i;
+				break;
+			}
+		}
+	}
 }
 
 export function inFence(state, lineDiv) {
 	let currentFence = null;
+	console.log('trying to determine if is in fence');
 	for (let i=0; i<state.fences.length; i++) {
 		let position = lineDiv.compareDocumentPosition(state.fences[i].node);
+		console.log(
+			state.fences[i],
+			position & DOCUMENT_POSITION_PRECEDING,
+			state.lastFences);
 
-		if ((position & DOCUMENT_POSITION_PRECEDING) && 
-			i < state.lastFences[currentFence] && 
-			currentFence === null) {
-			currentFence = state.fences[i].node.type;
-		} else if (position & (DOCUMENT_POSITION_PRECEDING) && 
-			currentFence === state.fences[i].node.type) {
-			currentFence = null;
-		} else if (position & DOCUMENT_POSITION_FOLLOWING) {
+		if (position & DOCUMENT_POSITION_PRECEDING) {
+			if (currentFence === null) {
+				if (i < state.lastFences[state.fences[i].type]) {
+					// transitioning from empty to a type
+					currentFence = state.fences[i].type
+				}
+			} else if (currentFence === state.fences[i].type) {
+				// transitioning from a type to null on exit
+				currentFence = null;
+			}
+		} else {
 			return currentFence !== null;
 		}
+		console.log(currentFence);
 	}
 	return currentFence !== null;
 }
