@@ -24,6 +24,7 @@ host.getElementsByClassName('codeFence');
 */
 
 function fenceType(node) {
+	// console.log('"'+node.textContent+'"');
 	return node.textContent.charAt(0);
 }
 
@@ -67,8 +68,12 @@ function repairFenceStates(state, delims) {
 	let current = delims[0];
 	const final = delims[1];
 
+	console.log('repairing fence state', delims);
+
 	let currentFenceType = null; 
 	while (current && !current.isSameNode(final)) {
+		console.log(current);
+
 		if (currentFenceType === null ) {
 			let thisFenceType = fenceType(current);
 			currentFenceType = thisFenceType;
@@ -91,6 +96,7 @@ function insertLastFence(state, node) {
 	// register newest fence as the last fence if it is beyond the previous
 	// last fence
 	let newFenceType = fenceType(node);
+	console.log(newFenceType, state.lastFences);
 	if (!(newFenceType in state.lastFences) ||
 		isBefore(state.lastFences[newFenceType], node)) {
 		state.lastFences[newFenceType] = node
@@ -98,14 +104,19 @@ function insertLastFence(state, node) {
 }
 
 function removeLastFence(state, node) {
-	let type = fenceType(node);
-	if (state.lastFences[type].isSameNode(node)) {
-		// find the last fence
-		node = getPreviousFence(node);
-		while (node && fenceType(node) !== type) {
+	for (let type in state.lastFences) {
+		if (state.lastFences[type].isSameNode(node)) {
+			// find the last fence
 			node = getPreviousFence(node);
+			while (node && fenceType(node) !== type) {
+				node = getPreviousFence(node);
+			}
+			if (node !== null ) {
+				state.lastFences[type] = node;
+			} else {
+				delete state.lastFences[type];
+			}
 		}
-		state.lastFences[type] = node;
 	}
 }
 
@@ -114,23 +125,40 @@ function removeLastFence(state, node) {
 export function insertFence(state, newFence) {
 	let openingFence = getOpeningFence(newFence);
 	let nextFence = getNextFence(newFence);
-	let closingFence = getClosingFence(newFence);
-	
+
 	let openingFenceState = openingFence ? openingFence.getAttribute('fencestate') : null;
 	let newFenceState = newFence ? newFence.getAttribute('fencestate') : null;
 
+	// update last fence if needed
 	insertLastFence(state, newFence);
 
 	if (openingFenceState === 'unpaired') {
-		// if we are closing an unpaired fence, tell it it is an enter
+		// if the fence types don't match, ignore this fence
+		if (fenceType(openingFence) !== fenceType(newFence)) {
+			newFence.setAttribute('fencestate', 'ignored');
+			return null;
+		}
+
+		// if we are closing an unpaired fence, turn it into
+		// an enter fence
 		openingFence.setAttribute('fencestate', 'enter');
 		newFence.setAttribute('fencestate', 'exit');
 		return [openingFence, newFence];
+
 	} else if (openingFenceState === 'enter') {
-		// if we are pre-empting an existing fence
+		// if the fence types don't match, ignore this fence
+		if (fenceType(openingFence) !== fenceType(newFence)) {
+			newFence.setAttribute('fencestate', 'ignored');
+			return null;
+		}
+
+		// if we are pre-empting an existing fence,
+		// make this an exit fence and re-render the text
+		// following this
 		newFence.setAttribute('fencestate', 'exit');
 		repairFenceStates(state, [nextFence, null]);
 		return [newFence.nextSibling, null];
+
 	} else if (openingFenceState === null) {
 		// if we are inserting in an empty block,
 		// scan downwards
@@ -153,9 +181,11 @@ export function removeFence(state, node) {
 		case 'exit':
 			// re-scan from opening fence
 			console.log('remove exit node', node);
-			scanRange = [getOpeningFence(node.previousSibling), null];
+			scanRange = [getOpeningFence(node), null];
+			console.log(scanRange);
 			repairFenceStates(state, scanRange);
 			return scanRange;
+
 		case 'enter':
 			// re-scan from fences below this
 			console.log('remove entry node', node);
@@ -163,6 +193,8 @@ export function removeFence(state, node) {
 			repairFenceStates(state, scanRange);
 			return scanRange;
 	}
+
+	return null;
 }
 
 export function inFence(state, node) {

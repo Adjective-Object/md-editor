@@ -370,6 +370,10 @@ function renderRange(state, delims) {
   }
 }
 
+function clearAttributes(line) {
+  line.removeAttribute('fencestate');
+}
+
 /** Takes a div in the mdedit host div and applies the appropriate
 class tags based on the text content.
 
@@ -412,9 +416,7 @@ export function renderLine(state, lineDiv, opt) {
     parseState.lineClass !== lineDiv.className);
 
 
-
-
-  // insert a fence if this line changed from a fence to a non-fence
+  // insert a fence if this line changed into a fence
   if (parseState.lineClass === 'codeFence' &&
       lineDiv.className !== 'codeFence') {
     const delims = insertFence(state, lineDiv);
@@ -422,13 +424,12 @@ export function renderLine(state, lineDiv, opt) {
     renderRange(state, delims)
     return;
 
-  // otherwise, if it changed from a non-fence to a fence
-  // adjust the adjacent fences  
+  // otherwise, if it changed from a fence
   } else if (
       parseState.lineClass !== 'codeFence' &&
       lineDiv.className === 'codeFence') {
-    const delims = removeFence(state, lineDiv);
     lineDiv.className = parseState.lineClass;
+    const delims = removeFence(state, lineDiv);
     renderRange(state, delims)
     return;
 
@@ -436,10 +437,15 @@ export function renderLine(state, lineDiv, opt) {
   } else if (inFence(state, lineDiv)) {
     // otherwise if this line is inside of a code block, don't do styling
     // and instead just chill
-    console.log('in fence!');
     lineDiv.textContent = lineDiv.textContent;
     lineDiv.className = 'codeFenceBlock';
+
+    // remove the fencestate attributes
+    clearAttributes(lineDiv);
     return;
+  } else if (lineDiv.className !== 'codeFence'){
+    // remove fence attributes
+    clearAttributes(lineDiv);
   }
 
   // otherwise we default to normal rendering behavior
