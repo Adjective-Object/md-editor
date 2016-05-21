@@ -1,4 +1,8 @@
-import { MAX_HEADER_DEPTH, OFFSET_INVALID } from './constants';
+import { 
+MAX_HEADER_DEPTH,
+OFFSET_INVALID,
+DOCUMENT_POSITION_FOLLOWING
+} from './constants';
 
 // ////////
 // UTIL //
@@ -406,4 +410,8 @@ export function insertTextAtCursor(host, txt) {
   );
 
   setCursorPos(anchor, offset + txt.length);
+}
+
+export function isBefore(a, b){
+  return (a.compareDocumentPosition(b) & DOCUMENT_POSITION_FOLLOWING) !== 0
 }

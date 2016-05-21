@@ -18,6 +18,7 @@ import {
 
   continueCodeBlock,
   clearCodeBlock,
+  clearToParagraph,
 
   insertSpaces,
   markForChange,
@@ -57,8 +58,16 @@ const evtMapping = expandCharClassKeys({
       ],
       ignoreDefault: true,
     }),
-
   },
+
+  'codeFence': {
+    keydown: matchRuleset({
+      actions: [
+        [ keyCode(keys.ENTER), clearToParagraph ]
+      ],
+      ignoreDefault: true,
+    })
+  }
 });
 
 

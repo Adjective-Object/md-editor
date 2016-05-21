@@ -3,6 +3,7 @@ import {
  calculateListElemDepth, getLeadingTextNode,
  fixListElementSpaces, makeListNonLive,
  getCursorPos, setCursorPos,
+ isBefore
 } from './util';
 import {
   OFFSET_INVALID, SEPARATOR_DASH_LENGTH,
@@ -11,6 +12,7 @@ import {
 } from './constants';
 import {
   insertFence,
+  removeFence,
   inFence
 } from './fences';
 
@@ -351,6 +353,23 @@ function renderStepInsertEmbeds(parseState) {
   }
 }
 
+function renderRange(state, delims) {
+  console.log('delims:', delims);
+  if (delims !== null) {
+    const changeRangeEnd = delims[1];
+    let scanner = delims[0];
+    console.log ('scanner starts', scanner);
+    while (
+      scanner !== null && 
+      (changeRangeEnd === null || isBefore(scanner, changeRangeEnd))) {
+      console.log ('scanner', scanner);
+      // reset to text, apply classes
+      renderLine(state, scanner, {});
+      scanner = scanner.nextSibling;
+    }
+  }
+}
+
 /** Takes a div in the mdedit host div and applies the appropriate
 class tags based on the text content.
 
@@ -392,25 +411,28 @@ export function renderLine(state, lineDiv, opt) {
       lineDiv.className === 'ol') &&
     parseState.lineClass !== lineDiv.className);
 
-  // evaluate fences if the line changed from a non-fence to a fence
+
+
+
+  // insert a fence if this line changed from a fence to a non-fence
   if (parseState.lineClass === 'codeFence' &&
       lineDiv.className !== 'codeFence') {
-
     const delims = insertFence(state, lineDiv);
-    console.log('delims:', delims);
-    if (delims !== null ) {
-      const changeRangeEnd = delims[1];
-      let scanner = delims[0];
-      console.log ('scanner starts', scanner);
-      // while (
-      //   scanner.compareDocumentPosition(changeRangeEnd) &
-      //   DOCUMENT_POSITION_FOLLOWING) {
-      //   console.log ('scanner', scanner);
-      //   // reset to text, apply classes
-      //   renderLine(state, scanner, {});
-      //   scanner = scanner.nextSibling;
-      // }     
-    }
+    lineDiv.className = parseState.lineClass;
+    renderRange(state, delims)
+    return;
+
+  // otherwise, if it changed from a non-fence to a fence
+  // adjust the adjacent fences  
+  } else if (
+      parseState.lineClass !== 'codeFence' &&
+      lineDiv.className === 'codeFence') {
+    const delims = removeFence(state, lineDiv);
+    lineDiv.className = parseState.lineClass;
+    renderRange(state, delims)
+    return;
+
+  // otherwise, we check if this is in a fence
   } else if (inFence(state, lineDiv)) {
     // otherwise if this line is inside of a code block, don't do styling
     // and instead just chill
@@ -419,6 +441,8 @@ export function renderLine(state, lineDiv, opt) {
     lineDiv.className = 'codeFenceBlock';
     return;
   }
+
+  // otherwise we default to normal rendering behavior
 
   parseState.evalSuccessor = (
     lineDiv.nextSibling !== null && (

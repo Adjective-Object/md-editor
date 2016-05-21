@@ -60,17 +60,20 @@ export function clearToType(state, target, evt, className) {
   p.appendChild(ptext);
   target.textContent = target.textContent.substring(0, cursorOff);
 
-    // move cursor to target of next element
+  // move cursor to target of next element
   moveCursor(ptext, 0);
 
-    // re-evaluate this and the other thing
+  // re-evaluate this and the other thing
+  console.log('re-rendering original');
   renderLine(state, lineOf(state.host, target));
+  console.log('re-rendering next');
   renderLine(state, lineOf(state.host, p));
   return p;
 }
 
 // TODO document these clearToX methods
 export function clearToParagraph(state, target, evt) {
+  console.log('clearToParagraph');
   clearToType(state, target, evt, 'p');
 }
 
