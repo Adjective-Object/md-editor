@@ -16,7 +16,9 @@
 		"brace-style": ["error", "1tbs", {"allowSingleLine": true}],
 
 		// disable use checking on args
-		"no-unused-vars": ["error", { "args": "none" }]
+		"no-unused-vars": ["error", { "args": "none" }],
 
+		// allow negation in conditionals
+		"no-negated-condition": ["off"]
 	}
 }

@@ -7,8 +7,6 @@ import {
 } from './util';
 import {
   OFFSET_INVALID, SEPARATOR_DASH_LENGTH,
-  DOCUMENT_POSITION_PRECEDING,
-  DOCUMENT_POSITION_FOLLOWING,
 } from './constants';
 import {
   insertFence,
@@ -354,16 +352,16 @@ function renderStepInsertEmbeds(parseState) {
 }
 
 function renderRange(state, delims) {
-  console.log('delims:', delims);
   if (delims !== null) {
     const changeRangeEnd = delims[1];
     let scanner = delims[0];
-    console.log('scanner starts', scanner);
+
     while (
       scanner !== null &&
+      // eslint-disable-next-line no-unmodified-loop-condition
       (changeRangeEnd === null || isBefore(scanner, changeRangeEnd))) {
-      console.log('scanner', scanner);
-      // reset to text, apply classes
+      // re-render the lines in the range
+      // eslint-disable-next-line no-use-before-define
       renderLine(state, scanner, {});
       scanner = scanner.nextSibling;
     }
@@ -372,6 +370,45 @@ function renderRange(state, delims) {
 
 function clearAttributes(line) {
   line.removeAttribute('fencestate');
+}
+
+function renderStepEvalFences(state, parseState) {
+  const lineDiv = parseState.lineDiv;
+
+  // insert a fence if this line changed into a fence
+  if (parseState.lineClass === 'codeFence' &&
+      lineDiv.className !== 'codeFence') {
+    const delims = insertFence(state, lineDiv);
+    lineDiv.className = parseState.lineClass;
+    renderRange(state, delims);
+    return true;
+
+  // otherwise, if it changed from a fence
+  } else if (
+      parseState.lineClass !== 'codeFence' &&
+      lineDiv.className === 'codeFence') {
+    lineDiv.className = parseState.lineClass;
+    const delims = removeFence(state, lineDiv);
+    renderRange(state, delims);
+    return true;
+
+  // otherwise, we check if this is in a fence
+  } else if (inFence(state, lineDiv)) {
+    // otherwise if this line is inside of a code block, don't do styling
+    // and instead just chill
+    lineDiv.textContent = lineDiv.textContent;
+    lineDiv.className = 'codeFenceBlock';
+
+    // remove the fencestate attributes
+    clearAttributes(lineDiv);
+    return true;
+
+  // by default clear the fencestate attribute
+  } else if (lineDiv.className !== 'codeFence') {
+    clearAttributes(lineDiv);
+  }
+
+  return false;
 }
 
 /** Takes a div in the mdedit host div and applies the appropriate
@@ -415,48 +452,17 @@ export function renderLine(state, lineDiv, opt) {
       lineDiv.className === 'ol') &&
     parseState.lineClass !== lineDiv.className);
 
+  // render fences and short circuit normal rendering behavior
+  if (renderStepEvalFences(state, parseState)) { return; }
 
-  // insert a fence if this line changed into a fence
-  if (parseState.lineClass === 'codeFence' &&
-      lineDiv.className !== 'codeFence') {
-    const delims = insertFence(state, lineDiv);
-    lineDiv.className = parseState.lineClass;
-    renderRange(state, delims);
-    return;
+  // perform normal rendering behavior
 
-  // otherwise, if it changed from a fence
-  } else if (
-      parseState.lineClass !== 'codeFence' &&
-      lineDiv.className === 'codeFence') {
-    lineDiv.className = parseState.lineClass;
-    const delims = removeFence(state, lineDiv);
-    renderRange(state, delims);
-    return;
-
-  // otherwise, we check if this is in a fence
-  } else if (inFence(state, lineDiv)) {
-    // otherwise if this line is inside of a code block, don't do styling
-    // and instead just chill
-    lineDiv.textContent = lineDiv.textContent;
-    lineDiv.className = 'codeFenceBlock';
-
-    // remove the fencestate attributes
-    clearAttributes(lineDiv);
-    return;
-  } else if (lineDiv.className !== 'codeFence') {
-    // remove fence attributes
-    clearAttributes(lineDiv);
-  }
-
-  // otherwise we default to normal rendering behavior
-
+  // evaluate the successor to this shit
   parseState.evalSuccessor = (
     lineDiv.nextSibling !== null && (
       lineDiv.nextSibling.className === 'codeBlock' ||
       emptyLineRegex.test(lineDiv.textContent)
     ));
-
-
 
   // apply new class
   renderStepApplyClass(parseState);

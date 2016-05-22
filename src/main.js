@@ -102,8 +102,9 @@ export function bind(host, docParts) {
   host.addEventListener('keydown', dispatchEvt(state, evtMapping));
   host.addEventListener('keypress', dispatchEvt(state, evtMapping));
   host.addEventListener('input', render);
-  host.addEventListener('mousedown', function () {
-    console.log(state.lastFences);
+  host.addEventListener('mousedown', () => {
+    // eslint-disable-next-line no-console
+    console.log(state);
   });
 
   // drag and drop events add too much othr stuff

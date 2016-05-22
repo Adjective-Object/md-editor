@@ -54,7 +54,6 @@ export function clearToType(state, target, evt, className) {
   state.host.insertBefore(p, targetNode.nextSibling);
 
   const cursorOff = getCursorPos(targetNode);
-  console.log(targetNode, cursorOff, window.getSelection());
   const ptext = document.createTextNode(target.textContent.substring(cursorOff));
   p.appendChild(ptext);
   target.textContent = target.textContent.substring(0, cursorOff);

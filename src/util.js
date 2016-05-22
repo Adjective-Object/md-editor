@@ -156,17 +156,20 @@ export function getCursorPos(div) {
   let frontier = ([ div ]).concat(makeListNonLive(div.childNodes));
   while (frontier.length > 0) {
     if (frontier[0] === selection.anchorNode) {
+      // if the node is a text node, return position in the node
       if (frontier[0].nodeName === '#text') {
         return length + selection.anchorOffset;
-      } else {
-        return Reflect.apply(
-          Array.prototype.slice,
-          frontier[0].childNodes,
-          [0, selection.anchorOffset])
-          .reduce(
-            (a, b) => a + b.textContent.length,
-            0);
       }
+
+      // otherwise sum the text lengths of the elements
+      // before this element and return that
+      return Reflect.apply(
+        Array.prototype.slice,
+        frontier[0].childNodes,
+        [ 0, selection.anchorOffset ])
+        .reduce(
+          (a, b) => a + b.textContent.length,
+          0);
     } else if (frontier[0].nodeName === '#text') {
       length += frontier[0].textContent.length;
       frontier = frontier.slice(1);
@@ -226,7 +229,7 @@ export function lineOf(host, elem) {
   return elem;
 }
 
-// TODO actually implement things
+// TODO actually this things
 /** Strips the list header from a string
 @param {string} str - the string to strip the list header form
 
@@ -423,5 +426,8 @@ export function insertTextAtCursor(host, txt) {
 }
 
 export function isBefore(a, b) {
+  // have to use bitwise because the native function returns
+  // a bit filter
+  // eslint-disable-next-line no-bitwise
   return (a.compareDocumentPosition(b) & DOCUMENT_POSITION_FOLLOWING) !== 0;
 }
