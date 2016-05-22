@@ -3,17 +3,17 @@ import {
  calculateListElemDepth, getLeadingTextNode,
  fixListElementSpaces, makeListNonLive,
  getCursorPos, setCursorPos,
- isBefore
+ isBefore,
 } from './util';
 import {
   OFFSET_INVALID, SEPARATOR_DASH_LENGTH,
   DOCUMENT_POSITION_PRECEDING,
-  DOCUMENT_POSITION_FOLLOWING
+  DOCUMENT_POSITION_FOLLOWING,
 } from './constants';
 import {
   insertFence,
   removeFence,
-  inFence
+  inFence,
 } from './fences';
 
 // ///////////////////////////////
@@ -358,11 +358,11 @@ function renderRange(state, delims) {
   if (delims !== null) {
     const changeRangeEnd = delims[1];
     let scanner = delims[0];
-    console.log ('scanner starts', scanner);
+    console.log('scanner starts', scanner);
     while (
-      scanner !== null && 
+      scanner !== null &&
       (changeRangeEnd === null || isBefore(scanner, changeRangeEnd))) {
-      console.log ('scanner', scanner);
+      console.log('scanner', scanner);
       // reset to text, apply classes
       renderLine(state, scanner, {});
       scanner = scanner.nextSibling;
@@ -421,7 +421,7 @@ export function renderLine(state, lineDiv, opt) {
       lineDiv.className !== 'codeFence') {
     const delims = insertFence(state, lineDiv);
     lineDiv.className = parseState.lineClass;
-    renderRange(state, delims)
+    renderRange(state, delims);
     return;
 
   // otherwise, if it changed from a fence
@@ -430,7 +430,7 @@ export function renderLine(state, lineDiv, opt) {
       lineDiv.className === 'codeFence') {
     lineDiv.className = parseState.lineClass;
     const delims = removeFence(state, lineDiv);
-    renderRange(state, delims)
+    renderRange(state, delims);
     return;
 
   // otherwise, we check if this is in a fence
@@ -443,7 +443,7 @@ export function renderLine(state, lineDiv, opt) {
     // remove the fencestate attributes
     clearAttributes(lineDiv);
     return;
-  } else if (lineDiv.className !== 'codeFence'){
+  } else if (lineDiv.className !== 'codeFence') {
     // remove fence attributes
     clearAttributes(lineDiv);
   }

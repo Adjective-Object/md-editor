@@ -50,12 +50,11 @@ export function clearToType(state, target, evt, className) {
   p.className = className;
 
     // create the next element
-  const targetNode = tagOf(target);
-  targetNode.parentElement.insertBefore(
-      p, targetNode.nextSibling);
+  const targetNode = lineOf(state.host, target);
+  state.host.insertBefore(p, targetNode.nextSibling);
 
-  const selection = window.getSelection();
-  const cursorOff = selection.anchorOffset;
+  const cursorOff = getCursorPos(targetNode);
+  console.log(targetNode, cursorOff, window.getSelection());
   const ptext = document.createTextNode(target.textContent.substring(cursorOff));
   p.appendChild(ptext);
   target.textContent = target.textContent.substring(0, cursorOff);
@@ -64,16 +63,13 @@ export function clearToType(state, target, evt, className) {
   moveCursor(ptext, 0);
 
   // re-evaluate this and the other thing
-  console.log('re-rendering original');
   renderLine(state, lineOf(state.host, target));
-  console.log('re-rendering next');
   renderLine(state, lineOf(state.host, p));
   return p;
 }
 
 // TODO document these clearToX methods
 export function clearToParagraph(state, target, evt) {
-  console.log('clearToParagraph');
   clearToType(state, target, evt, 'p');
 }
 

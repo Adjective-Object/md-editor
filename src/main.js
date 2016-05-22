@@ -63,11 +63,11 @@ const evtMapping = expandCharClassKeys({
   'codeFence': {
     keydown: matchRuleset({
       actions: [
-        [ keyCode(keys.ENTER), clearToParagraph ]
+        [ keyCode(keys.ENTER), clearToParagraph ],
       ],
       ignoreDefault: true,
-    })
-  }
+    }),
+  },
 });
 
 
@@ -95,16 +95,16 @@ export function bind(host, docParts) {
   const state = {
     // Maintian a reference to the host div in state
     host,
-    lastFences: {}
+    lastFences: {},
   };
 
   const render = renderChanges(state);
   host.addEventListener('keydown', dispatchEvt(state, evtMapping));
   host.addEventListener('keypress', dispatchEvt(state, evtMapping));
   host.addEventListener('input', render);
-  host.addEventListener('mousedown', function() {
+  host.addEventListener('mousedown', function () {
     console.log(state.lastFences);
- });
+  });
 
   // drag and drop events add too much othr stuff
   host.addEventListener('drop',

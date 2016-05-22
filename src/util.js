@@ -1,7 +1,7 @@
-import { 
+import {
 MAX_HEADER_DEPTH,
 OFFSET_INVALID,
-DOCUMENT_POSITION_FOLLOWING
+DOCUMENT_POSITION_FOLLOWING,
 } from './constants';
 
 // ////////
@@ -156,7 +156,17 @@ export function getCursorPos(div) {
   let frontier = ([ div ]).concat(makeListNonLive(div.childNodes));
   while (frontier.length > 0) {
     if (frontier[0] === selection.anchorNode) {
-      return length + selection.anchorOffset;
+      if (frontier[0].nodeName === '#text') {
+        return length + selection.anchorOffset;
+      } else {
+        return Reflect.apply(
+          Array.prototype.slice,
+          frontier[0].childNodes,
+          [0, selection.anchorOffset])
+          .reduce(
+            (a, b) => a + b.textContent.length,
+            0);
+      }
     } else if (frontier[0].nodeName === '#text') {
       length += frontier[0].textContent.length;
       frontier = frontier.slice(1);
@@ -412,6 +422,6 @@ export function insertTextAtCursor(host, txt) {
   setCursorPos(anchor, offset + txt.length);
 }
 
-export function isBefore(a, b){
-  return (a.compareDocumentPosition(b) & DOCUMENT_POSITION_FOLLOWING) !== 0
+export function isBefore(a, b) {
+  return (a.compareDocumentPosition(b) & DOCUMENT_POSITION_FOLLOWING) !== 0;
 }
