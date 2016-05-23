@@ -122,7 +122,7 @@ function removeLastFence(state, node) {
 export function insertFence(state, newFence) {
   insertLastFence(state, newFence);
 
-  let first = state.host.firstChild;
+  let first = getNextFence(state.host.firstChild);
   repairFenceStates(state, [first, null])
   return [first, null];
 }
@@ -131,7 +131,7 @@ export function removeFence(state, node) {
     // update lastFence by removing this fence
   removeLastFence(state, node);
 
-  let first = state.host.firstChild;
+  let first = getNextFence(state.host.firstChild);
   repairFenceStates(state, [first, null])
   return [first, null];
 }

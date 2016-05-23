@@ -1,9 +1,10 @@
 import {
   insertTag, countHeaderHashes,
- calculateListElemDepth, getLeadingTextNode,
- fixListElementSpaces, makeListNonLive,
- getCursorPos, setCursorPos,
- isBefore,
+  calculateListElemDepth, getLeadingTextNode,
+  fixListElementSpaces, makeListNonLive,
+  getCursorPos, setCursorPos,
+  isBefore,
+  lineOf,
 } from './util';
 import {
   OFFSET_INVALID, SEPARATOR_DASH_LENGTH,
@@ -142,7 +143,7 @@ const DELIM_TEXT_START = 0;
 const DELIM_TEXT_END = 1;
 const DELIM_LINK_START = 2;
 const DELIM_LINK_END = 3;
-function extractLinks(host, elem, delims, textCallback, linkCallback) {
+function extractDelimitedText(host, elem, delims, textCallback, linkCallback) {
   if (elem.nodeName === '#text') {
     let startIndex = 0;
     const elemText = elem.textContent;
@@ -165,7 +166,7 @@ function extractLinks(host, elem, delims, textCallback, linkCallback) {
         }
       }
 
-      // append tect between first index and start index as a text node
+      // append text between first index and start index as a text node
       parent.insertBefore(
         document.createTextNode(
           elemText.substring(startIndex, inds[DELIM_TEXT_START])),
@@ -181,14 +182,20 @@ function extractLinks(host, elem, delims, textCallback, linkCallback) {
       insertTag(parent, elem, 'linkdelim', delims[DELIM_TEXT_END]);
       insertTag(parent, elem, 'linkdelim', delims[DELIM_LINK_START]);
 
-      linkCallback(parent, elem,
-        elemText.substring(
-          inds[DELIM_LINK_START] + delims[DELIM_LINK_START].length,
-          inds[DELIM_LINK_END]));
+      if (delims.length >= DELIM_LINK_END) {
+        linkCallback(parent, elem,
+          elemText.substring(
+            inds[DELIM_LINK_START] + delims[DELIM_LINK_START].length,
+            inds[DELIM_LINK_END]));
 
-      insertTag(parent, elem, 'linkdelim', delims[DELIM_LINK_END]);
-
-      startIndex = inds[DELIM_LINK_END] + 1;
+        insertTag(parent, elem, 'linkdelim', delims[DELIM_LINK_END]);
+        startIndex = inds[DELIM_LINK_END] + 1;
+      } else {
+        linkCallback(parent, elem,
+          elemText.substring(
+            inds[DELIM_LINK_START] + delims[DELIM_LINK_START].length));
+          startIndex = elemText.length;
+      }
     }
     parent.removeChild(elem);
   } else {
@@ -199,7 +206,7 @@ function extractLinks(host, elem, delims, textCallback, linkCallback) {
 
     // traverse children
     for (let c = 0; c < elem.childNodes.length; c++) {
-      extractLinks(
+      extractDelimitedText(
         host, elem.childNodes[c], delims,
         textCallback, linkCallback);
     }
@@ -261,6 +268,11 @@ function imgSrcHandler(state, parseState, isRef=false) {
       embed.src = tag.href;
       parseState.embeddedElements.push(embed);
     }
+
+    if (isRef) {
+      refAdd(state, imgSrc, null, tag);
+    }
+
     return tag;
   };
 }
@@ -331,12 +343,12 @@ function renderStepExtractDomElements(state, parseState) {
   // first we do the ones that can create literal text
 
   // images and links
-  extractLinks(
+  extractDelimitedText(
     host, lineDiv, [ '![', ']', '(', ')' ],
     linkTextHandler, imgSrcHandler(state, parseState)
   );
 
-  extractLinks(
+  extractDelimitedText(
     host, lineDiv, [ '[', ']', '(', ')' ],
     linkTextHandler, linkHrefHandler(state)
   );
@@ -354,30 +366,35 @@ function renderStepExtractDomElements(state, parseState) {
   }
 
   function refLinkHref(parent, elem, text) {
+    console.log('refLinkHref', text);
+
     linkTextHandler(parent, elem, text);
     text = text.trim();
 
     state.refLinks[name].href = text;
     for (let i=0; i<state.refLinks[name].links.length; i++) {
-      console.log('updating href of ', state.refLinks[name].links[i]);
       state.refLinks[name].links[i].className = 'linkhref';
-      state.refLinks[name].links[i].href = text;
+
+      let line = lineOf(state, state.refLinks[name].links[i]);
+      if (line !== null) {
+        renderLine(state, line)
+      }
     }
   }
 
   // reflink definitions
-  extractLinks(
-    host, lineDiv, [ '[', ']', ':', ')' ],
+  extractDelimitedText(
+    host, lineDiv, [ '[', ']', ':'],
     refLinkNamer, refLinkHref
   );
 
   // reflink images and reflink links
-  extractLinks(
+  extractDelimitedText(
     host, lineDiv, [ '![', ']', '[', ']' ],
     linkTextHandler, imgSrcHandler(state, parseState, true)
   );
 
-  extractLinks(
+  extractDelimitedText(
     host, lineDiv, [ '[', ']', '[', ']' ],
     linkTextHandler, linkHrefHandler(state, true)
   );
@@ -472,7 +489,6 @@ function renderStepEvalFences(state, parseState) {
 
   // by default clear the fencestate attribute
   } else if (lineDiv.className !== 'codeFence') {
-    console.log('not a code fence');
     clearAttributes(lineDiv);
   }
 

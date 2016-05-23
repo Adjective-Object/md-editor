@@ -223,7 +223,7 @@ export function makeKeySet(str) {
 @param {DomNode} elem - element to find the line of
 */
 export function lineOf(host, elem) {
-  while (elem.parentElement !== host && elem !== host) {
+  while (elem && elem.parentElement !== host && elem !== host) {
     elem = elem.parentElement;
   }
   return elem;
