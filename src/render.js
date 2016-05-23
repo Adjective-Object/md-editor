@@ -13,6 +13,9 @@ import {
   removeFence,
   inFence,
 } from './fences';
+import {
+  refExists, refAdd, ref
+} from './refLinks'
 
 // ///////////////////////////////
 // Render Function And Helpers //
@@ -222,25 +225,25 @@ function linkTextHandler(parent, elem, text) {
   return insertTag(parent, elem, 'linktext', text);
 }
 function linkHrefHandler(state, isRef=false) {
-  return function handleLinkSrc(parent, elem, href) {
+  return function handleLinkSrc(parent, elem, linkText) {
     const div = document.createElement('a');
     
     if (isRef) {
-      if (href in state.refLinks ) {
-        div.className = 'linkhref';       
-        div.href = state.refLinks[href].href;
-        state.refLinks[href].links.push(elem);
+      if (refExists(state, linkText)) {
+        div.className = 'linkhref';
       } else {
         div.className = 'linkhref-missing';
-        div.href = '#UNDEFINED';
       }
+      refAdd(state, linkText, null, div);
+      div.href = ref(state, linkText);
+    
     } else {
       div.className = 'linkhref';
-      div.href = href;
+      div.href = linkText;
     }
 
     div.setAttribute('literal', 'true');
-    div.textContent = href;
+    div.textContent = linkText;
     parent.insertBefore(div, elem);
     return div;
   }
@@ -341,8 +344,6 @@ function renderStepExtractDomElements(state, parseState) {
   let name = null
   function refLinkNamer (parent, elem, text) {
     linkTextHandler(parent, elem, text);
-
-    console.log('namer', text);
     name = text;
     if (!(name in state.refLinks)) {
       state.refLinks[name] = {
@@ -354,9 +355,14 @@ function renderStepExtractDomElements(state, parseState) {
 
   function refLinkHref(parent, elem, text) {
     linkTextHandler(parent, elem, text);
-    console.log('href', text);
-      // TODO handle and update existing links
-    state.refLinks[name].href = text.trim();
+    text = text.trim();
+
+    state.refLinks[name].href = text;
+    for (let i=0; i<state.refLinks[name].links.length; i++) {
+      console.log('updating href of ', state.refLinks[name].links[i]);
+      state.refLinks[name].links[i].className = 'linkhref';
+      state.refLinks[name].links[i].href = text;
+    }
   }
 
   // reflink definitions
