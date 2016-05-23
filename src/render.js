@@ -437,8 +437,11 @@ function renderStepEvalFences(state, parseState) {
   // insert a fence if this line changed into a fence
   if (parseState.lineClass === 'codeFence' &&
       lineDiv.className !== 'codeFence') {
-    const delims = insertFence(state, lineDiv);
+
+    console.log('nonfence -> fence');
+
     lineDiv.className = parseState.lineClass;
+    const delims = insertFence(state, lineDiv);
     renderRange(state, delims);
     return true;
 
@@ -446,6 +449,9 @@ function renderStepEvalFences(state, parseState) {
   } else if (
       parseState.lineClass !== 'codeFence' &&
       lineDiv.className === 'codeFence') {
+
+    console.log('fence -> nonfence');
+
     lineDiv.className = parseState.lineClass;
     const delims = removeFence(state, lineDiv);
     renderRange(state, delims);
@@ -458,12 +464,15 @@ function renderStepEvalFences(state, parseState) {
     lineDiv.textContent = lineDiv.textContent;
     lineDiv.className = 'codeFenceBlock';
 
+    console.log('inFence')
+
     // remove the fencestate attributes
     clearAttributes(lineDiv);
     return true;
 
   // by default clear the fencestate attribute
   } else if (lineDiv.className !== 'codeFence') {
+    console.log('not a code fence');
     clearAttributes(lineDiv);
   }
 
@@ -513,7 +522,10 @@ export function renderLine(state, lineDiv, opt) {
 
   // render fences and short circuit normal rendering behavior
   // if this block is inside a fence
-  if (renderStepEvalFences(state, parseState)) { return; }
+  if (renderStepEvalFences(state, parseState)) { 
+    console.log('evalFences short circuiting')
+    return;
+  }
 
   // evaluate the successor to this shit
   parseState.evalSuccessor = (
