@@ -52,13 +52,13 @@ function getOpeningFence(node) {
   return node;
 }
 
-function getClosingFence(node) {
-  node = getNextFence(node);
-  while (node && !(node.getAttribute('fencestate') === 'exit')) {
-    node = getNextFence(node);
-  }
-  return node;
-}
+// function getClosingFence(node) {
+//   node = getNextFence(node);
+//   while (node && !(node.getAttribute('fencestate') === 'exit')) {
+//     node = getNextFence(node);
+//   }
+//   return node;
+// }
 
 function repairFenceStates(state, delims) {
   let current = delims[0];

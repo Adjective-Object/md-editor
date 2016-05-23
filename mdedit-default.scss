@@ -79,11 +79,12 @@
 	font-weight: bold;
 }
 
-.linkhref {
+.linkhref, .linkhref-missing {
 	display: inline-block;
-	color: #66AAAA;
 	text-decoration: underline;
 }
+.linkhref {	color: #66AAAA; }
+.linkhref-missing {	color: #AA6666; }
 
 .linktext {
 	display:inline-block;

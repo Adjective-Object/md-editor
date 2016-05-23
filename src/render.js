@@ -221,29 +221,41 @@ export function setAttrs(attrs) {
 function linkTextHandler(parent, elem, text) {
   return insertTag(parent, elem, 'linktext', text);
 }
-function linkHrefHandler(parent, elem, href) {
-  const div = document.createElement('a');
-  div.className = 'linkhref';
-  div.setAttribute('literal', 'true');
-  div.textContent = href;
-  div.href = href;
-  parent.insertBefore(div, elem);
-  return div;
+function linkHrefHandler(state, isRef=false) {
+  return function handleLinkSrc(parent, elem, href) {
+    const div = document.createElement('a');
+    
+    if (isRef) {
+      if (href in state.refLinks ) {
+        div.className = 'linkhref';       
+        div.href = state.refLinks[href].href;
+        state.refLinks[href].links.push(elem);
+      } else {
+        div.className = 'linkhref-missing';
+        div.href = '#UNDEFINED';
+      }
+    } else {
+      div.className = 'linkhref';
+      div.href = href;
+    }
+
+    div.setAttribute('literal', 'true');
+    div.textContent = href;
+    parent.insertBefore(div, elem);
+    return div;
+  }
 }
 
-// because 'ul' and 'ol' divs are special in that
-// the state of the next div depends on this div,
-// we note that the chid should be re-evaluated at end
-function imgSrcHandler(parseState) {
+function imgSrcHandler(state, parseState, isRef=false) {
   return function handleImgSrc(parent, elem, imgSrc) {
     // link href
-    const tag = linkHrefHandler(parent, elem, imgSrc);
+    const tag = linkHrefHandler(state, isRef)(parent, elem, imgSrc);
 
     // add the image to the data object for this line
     if (imgSrc !== '') {
       const embed = document.createElement('img');
       embed.className = 'embedImage';
-      embed.src = imgSrc;
+      embed.src = tag.href;
       parseState.embeddedElements.push(embed);
     }
     return tag;
@@ -309,18 +321,59 @@ function renderStepApplyClass(parseState) {
   }
 }
 
-function renderStepExtractDomElements(parseState) {
+function renderStepExtractDomElements(state, parseState) {
   const host = parseState.host;
   const lineDiv = parseState.lineDiv;
+
   // first we do the ones that can create literal text
+
+  // images and links
   extractLinks(
     host, lineDiv, [ '![', ']', '(', ')' ],
-    linkTextHandler, imgSrcHandler(parseState)
+    linkTextHandler, imgSrcHandler(state, parseState)
   );
 
   extractLinks(
     host, lineDiv, [ '[', ']', '(', ')' ],
-    linkTextHandler, linkHrefHandler
+    linkTextHandler, linkHrefHandler(state)
+  );
+
+  let name = null
+  function refLinkNamer (parent, elem, text) {
+    linkTextHandler(parent, elem, text);
+
+    console.log('namer', text);
+    name = text;
+    if (!(name in state.refLinks)) {
+      state.refLinks[name] = {
+        links: [],
+        href: '#'
+      }
+    }
+  }
+
+  function refLinkHref(parent, elem, text) {
+    linkTextHandler(parent, elem, text);
+    console.log('href', text);
+      // TODO handle and update existing links
+    state.refLinks[name].href = text.trim();
+  }
+
+  // reflink definitions
+  extractLinks(
+    host, lineDiv, [ '[', ']', ':', ')' ],
+    refLinkNamer, refLinkHref
+  );
+
+  // reflink images and reflink links
+  extractLinks(
+    host, lineDiv, [ '![', ']', '[', ']' ],
+    linkTextHandler, imgSrcHandler(state, parseState, true)
+  );
+
+  extractLinks(
+    host, lineDiv, [ '[', ']', '[', ']' ],
+    linkTextHandler, linkHrefHandler(state, true)
   );
 
   extractSpan(host, lineDiv, '`', setAttrs({ 'class': 'code', 'literal': true }));
@@ -453,9 +506,8 @@ export function renderLine(state, lineDiv, opt) {
     parseState.lineClass !== lineDiv.className);
 
   // render fences and short circuit normal rendering behavior
+  // if this block is inside a fence
   if (renderStepEvalFences(state, parseState)) { return; }
-
-  // perform normal rendering behavior
 
   // evaluate the successor to this shit
   parseState.evalSuccessor = (
@@ -464,11 +516,11 @@ export function renderLine(state, lineDiv, opt) {
       emptyLineRegex.test(lineDiv.textContent)
     ));
 
-  // apply new class
+  // apply the class of the line
   renderStepApplyClass(parseState);
 
   // extract spans (links, italics, underlines, etc)
-  renderStepExtractDomElements(parseState);
+  renderStepExtractDomElements(state, parseState);
 
   // repair text cursor position
   renderStepRepairCursor(parseState);

@@ -95,7 +95,15 @@ export function bind(host, docParts) {
   const state = {
     // Maintian a reference to the host div in state
     host,
+    
+    // fenceType: DomNode
     lastFences: {},
+
+    // linkHash: {
+    //   links: [DomNode]
+    //   href: string
+    // }
+    refLinks: {},
   };
 
   const render = renderChanges(state);
